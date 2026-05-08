@@ -2,11 +2,11 @@
 
 [![Crates.io Version](https://img.shields.io/crates/v/ruint)](https://crates.io/crates/ruint)
 [![docs.rs](https://img.shields.io/docsrs/ruint)](https://docs.rs/ruint)
-[![MIT License](https://img.shields.io/github/license/recmo/uint)](https://github.com/recmo/uint/blob/main/LICENSE)
-[![dependency status](https://deps.rs/repo/github/recmo/uint/status.svg)](https://deps.rs/repo/github/recmo/uint)
-[![codecov](https://codecov.io/gh/recmo/uint/branch/main/graph/badge.svg?token=WBPZ9U4TTO)](https://codecov.io/gh/recmo/uint)
-[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/recmo/uint)
-[![CI](https://github.com/recmo/uint/actions/workflows/ci.yml/badge.svg)](https://github.com/recmo/uint/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/github/license/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/blob/main/LICENSE)
+[![dependency status](https://deps.rs/repo/github/alloy-rs/ruint/status.svg)](https://deps.rs/repo/github/alloy-rs/ruint)
+[![codecov](https://codecov.io/gh/alloy-rs/ruint/branch/main/graph/badge.svg?token=WBPZ9U4TTO)](https://codecov.io/gh/alloy-rs/ruint)
+[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/alloy-rs/ruint)
+[![CI](https://github.com/alloy-rs/ruint/actions/workflows/ci.yml/badge.svg)](https://github.com/alloy-rs/ruint/actions/workflows/ci.yml)
 
 Implements [`Uint<BITS, LIMBS>`], the ring of numbers modulo $2^{\mathsf{BITS}}$. It requires two
 generic arguments: the number of bits and the number of 64-bit 'limbs' required to store those bits.
@@ -206,9 +206,9 @@ RUSTDOCFLAGS="-Z unstable-options --show-coverage"  cargo doc --workspace --all-
 
 ---
 
-[![lines of code](https://img.shields.io/tokei/lines/github/recmo/uint)](https://github.com/recmo/uint)
-[![GitHub contributors](https://img.shields.io/github/contributors/recmo/uint)](https://github.com/recmo/uint/graphs/contributors)
-[![GitHub issues](https://img.shields.io/github/issues/recmo/uint)](https://github.com/recmo/uint/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/recmo/uint?label=PRs)](https://github.com/recmo/uint/pulls)
-[![GitHub Repo stars](https://img.shields.io/github/stars/recmo/uint)](https://star-history.com/#recmo/uint&Date)
+[![lines of code](https://img.shields.io/tokei/lines/github/alloy-rs/ruint)](https://github.com/alloy-rs/ruint)
+[![GitHub contributors](https://img.shields.io/github/contributors/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/graphs/contributors)
+[![GitHub issues](https://img.shields.io/github/issues/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/alloy-rs/ruint?label=PRs)](https://github.com/alloy-rs/ruint/pulls)
+[![GitHub Repo stars](https://img.shields.io/github/stars/alloy-rs/ruint)](https://star-history.com/#alloy-rs/ruint&Date)
 [![crates.io](https://img.shields.io/crates/d/ruint)](https://crates.io/crates/ruint)

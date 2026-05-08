@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![doc(issue_tracker_base_url = "https://github.com/recmo/uint/issues/")]
+#![doc(issue_tracker_base_url = "https://github.com/alloy-rs/ruint/issues/")]
 #![cfg_attr(test, allow(clippy::wildcard_imports, clippy::cognitive_complexity))]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(not(feature = "std"), no_std)]
