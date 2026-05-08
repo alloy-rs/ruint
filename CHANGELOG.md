@@ -25,12 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Use `rkyv::primitive::ArchivedU64` ([#556])
 
-[#556]: https://github.com/recmo/uint/pull/556
-[#557]: https://github.com/recmo/uint/pull/557
-[#561]: https://github.com/recmo/uint/pull/561
-[#565]: https://github.com/recmo/uint/pull/565
-[#566]: https://github.com/recmo/uint/pull/566
-[#569]: https://github.com/recmo/uint/pull/569
+[#556]: https://github.com/alloy-rs/ruint/pull/556
+[#557]: https://github.com/alloy-rs/ruint/pull/557
+[#561]: https://github.com/alloy-rs/ruint/pull/561
+[#565]: https://github.com/alloy-rs/ruint/pull/565
+[#566]: https://github.com/alloy-rs/ruint/pull/566
+[#569]: https://github.com/alloy-rs/ruint/pull/569
 
 ## [1.17.2] - 2025-12-28
 
@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - fix(docsrs): remove doc_auto_cfg ([#554])
 
-[#554]: https://github.com/recmo/uint/pull/554
+[#554]: https://github.com/alloy-rs/ruint/pull/554
 
 ## [1.17.1] - 2025-12-26
 
@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `unsafe` to many unstable API functions in `algorithms` module, and
   documented their conditions of use (COU). ([#552])
 
-[#552]: https://github.com/recmo/uint/pull/552
+[#552]: https://github.com/alloy-rs/ruint/pull/552
 
 ## [1.17.0] - 2025-09-24
 
@@ -63,11 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reimplemented `TryFrom<f64>` for `Uint` to speed it up, fixing edge cases and removing `std` requirements ([#524])
 - Reimplemented `From<Uint>` for `f64` and `f32` to speed it up, fixing edge cases and removing `std` requirements ([#535])
 
-[#503]: https://github.com/recmo/uint/pull/503
-[#516]: https://github.com/recmo/uint/pull/516
-[#526]: https://github.com/recmo/uint/pull/526
-[#533]: https://github.com/recmo/uint/pull/533
-[#524]: https://github.com/recmo/uint/pull/524
+[#503]: https://github.com/alloy-rs/ruint/pull/503
+[#516]: https://github.com/alloy-rs/ruint/pull/516
+[#526]: https://github.com/alloy-rs/ruint/pull/526
+[#533]: https://github.com/alloy-rs/ruint/pull/533
+[#524]: https://github.com/alloy-rs/ruint/pull/524
 
 ## [1.16.0] - 2025-08-04
 
@@ -86,11 +86,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Check limb overflow in shift ops ([#476])
 
-[#476]: https://github.com/recmo/uint/pull/476
-[#483]: https://github.com/recmo/uint/pull/483
-[#486]: https://github.com/recmo/uint/pull/486
-[#488]: https://github.com/recmo/uint/pull/488
-[#491]: https://github.com/recmo/uint/pull/491
+[#476]: https://github.com/alloy-rs/ruint/pull/476
+[#483]: https://github.com/alloy-rs/ruint/pull/483
+[#486]: https://github.com/alloy-rs/ruint/pull/486
+[#488]: https://github.com/alloy-rs/ruint/pull/488
+[#491]: https://github.com/alloy-rs/ruint/pull/491
 
 ## [1.15.0] - 2025-05-22
 
@@ -103,8 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Pyo3. This is a **non-semver breaking change** to address a vulnerability reported on Pyo3. ([#460])
 - Make `rotate*`, `*sh[lr]` functions `const` ([#441])
 
-[#441]: https://github.com/recmo/uint/pull/441
-[#460]: https://github.com/recmo/uint/pull/460
+[#441]: https://github.com/alloy-rs/ruint/pull/441
+[#460]: https://github.com/alloy-rs/ruint/pull/460
 
 ## [1.14.0] - 2025-03-25
 
@@ -124,12 +124,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix `checked_byte` bounds check and make it const ([#438])
 
-[#438]: https://github.com/recmo/uint/pull/438
-[#439]: https://github.com/recmo/uint/pull/439
-[#442]: https://github.com/recmo/uint/pull/442
-[#444]: https://github.com/recmo/uint/pull/444
-[#445]: https://github.com/recmo/uint/pull/445
-[#448]: https://github.com/recmo/uint/pull/448
+[#438]: https://github.com/alloy-rs/ruint/pull/438
+[#439]: https://github.com/alloy-rs/ruint/pull/439
+[#442]: https://github.com/alloy-rs/ruint/pull/442
+[#444]: https://github.com/alloy-rs/ruint/pull/444
+[#445]: https://github.com/alloy-rs/ruint/pull/445
+[#448]: https://github.com/alloy-rs/ruint/pull/448
 
 ## [1.13.1] - 2025-02-18
 
@@ -137,7 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove unused `hex` dependencies which broke `no_std` ([#433])
 
-[#433]: https://github.com/recmo/uint/pull/433
+[#433]: https://github.com/alloy-rs/ruint/pull/433
 
 ## [1.13.0] - 2025-02-18
 
@@ -156,11 +156,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update documentation related to `Uint::byte` and knuth divison ([#429])
 - fix: swap bytes for `as_le_bytes` in big endian world ([#431])
 
-[#416]: https://github.com/recmo/uint/pull/416
-[#424]: https://github.com/recmo/uint/pull/424
-[#426]: https://github.com/recmo/uint/pull/426
-[#429]: https://github.com/recmo/uint/pull/429
-[#431]: https://github.com/recmo/uint/pull/431
+[#416]: https://github.com/alloy-rs/ruint/pull/416
+[#424]: https://github.com/alloy-rs/ruint/pull/424
+[#426]: https://github.com/alloy-rs/ruint/pull/426
+[#429]: https://github.com/alloy-rs/ruint/pull/429
+[#431]: https://github.com/alloy-rs/ruint/pull/431
 
 ## [1.12.4] - 2024-12-16
 
@@ -181,11 +181,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Uint::mul_redc` is now alloc free ([#402])
 
-[#399]: https://github.com/recmo/uint/pull/399
-[#400]: https://github.com/recmo/uint/pull/400
-[#401]: https://github.com/recmo/uint/pull/401
-[#404]: https://github.com/recmo/uint/pull/404
-[#402]: https://github.com/recmo/uint/pull/402
+[#399]: https://github.com/alloy-rs/ruint/pull/399
+[#400]: https://github.com/alloy-rs/ruint/pull/400
+[#401]: https://github.com/alloy-rs/ruint/pull/401
+[#404]: https://github.com/alloy-rs/ruint/pull/404
+[#402]: https://github.com/alloy-rs/ruint/pull/402
 
 ## [1.12.3] - 2024-06-03
 
@@ -198,9 +198,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `alloc` requirement to `num-traits` feature [#363]
 
-[#363]: https://github.com/recmo/uint/pull/363
-[#366]: https://github.com/recmo/uint/pull/366
-[#373]: https://github.com/recmo/uint/pull/373
+[#363]: https://github.com/alloy-rs/ruint/pull/363
+[#366]: https://github.com/alloy-rs/ruint/pull/366
+[#373]: https://github.com/alloy-rs/ruint/pull/373
 
 ## [1.12.1] - 2024-03-12
 
@@ -209,8 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs.rs build ([#356])
 - `uint!` in item position ([#360])
 
-[#356]: https://github.com/recmo/uint/pull/356
-[#360]: https://github.com/recmo/uint/pull/360
+[#356]: https://github.com/alloy-rs/ruint/pull/356
+[#360]: https://github.com/alloy-rs/ruint/pull/360
 
 ## [1.12.0] - 2024-02-27
 
@@ -222,8 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Overflow check in `overflowing_shr` implementation ([#347])
 
-[#347]: https://github.com/recmo/uint/pull/347
-[#350]: https://github.com/recmo/uint/pull/350
+[#347]: https://github.com/alloy-rs/ruint/pull/347
+[#350]: https://github.com/alloy-rs/ruint/pull/350
 
 ## [1.11.1] - 2023-11-18
 
@@ -231,13 +231,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Typo in `Shr` implementation ([#343])
 
-[#343]: https://github.com/recmo/uint/pull/343
+[#343]: https://github.com/alloy-rs/ruint/pull/343
 
 ### Added
 
 -   Enable `SSZ` ([#344])
 
-[#344]: https://github.com/recmo/uint/pull/344
+[#344]: https://github.com/alloy-rs/ruint/pull/344
 
 ## [1.11.0] - 2023-10-31
 
@@ -256,14 +256,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restricted RLP decoding to match the RLP spec and disallow leading zeros ([#335])
 - `leading_ones` failed for non-aligned sizes.
 
-[#292]: https://github.com/recmo/uint/pull/292
-[#296]: https://github.com/recmo/uint/pull/296
-[#298]: https://github.com/recmo/uint/pull/298
-[#310]: https://github.com/recmo/uint/pull/310
-[#316]: https://github.com/recmo/uint/pull/316
-[#324]: https://github.com/recmo/uint/pull/324
-[#329]: https://github.com/recmo/uint/pull/329
-[#335]: https://github.com/recmo/uint/pull/335
+[#292]: https://github.com/alloy-rs/ruint/pull/292
+[#296]: https://github.com/alloy-rs/ruint/pull/296
+[#298]: https://github.com/alloy-rs/ruint/pull/298
+[#310]: https://github.com/alloy-rs/ruint/pull/310
+[#316]: https://github.com/alloy-rs/ruint/pull/316
+[#324]: https://github.com/alloy-rs/ruint/pull/324
+[#329]: https://github.com/alloy-rs/ruint/pull/329
+[#335]: https://github.com/alloy-rs/ruint/pull/335
 
 ## [1.10.1] - 2023-07-30
 
@@ -271,7 +271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed some support features ([#289])
 
-[#289]: https://github.com/recmo/uint/pull/289
+[#289]: https://github.com/alloy-rs/ruint/pull/289
 
 ## [1.10.0] - 2023-07-30
 
@@ -280,8 +280,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for `no_std` environments ([#274])
 - `alloc` feature ([#277])
 
-[#274]: https://github.com/recmo/uint/pull/274
-[#277]: https://github.com/recmo/uint/pull/277
+[#274]: https://github.com/alloy-rs/ruint/pull/274
+[#277]: https://github.com/alloy-rs/ruint/pull/277
 
 ## [1.9.0] - 2023-07-25
 
@@ -334,7 +334,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Edge case in which an overflow occurs when parsing a `Uint` with `uint!` ([#199]).
 
-[#199]: https://github.com/recmo/uint/issues/199
+[#199]: https://github.com/alloy-rs/ruint/issues/199
 
 ## [1.6.0] — 2022-10-28
 
@@ -509,37 +509,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- links to version -->
 
-[unreleased]: https://github.com/recmo/uint/compare/v1.18.0...HEAD
-[1.18.0]: https://github.com/recmo/uint/releases/tag/v1.18.0
-[1.17.2]: https://github.com/recmo/uint/releases/tag/v1.17.2
-[1.17.1]: https://github.com/recmo/uint/releases/tag/v1.17.1
-[1.17.0]: https://github.com/recmo/uint/releases/tag/v1.17.0
-[1.16.0]: https://github.com/recmo/uint/releases/tag/v1.16.0
-[1.15.0]: https://github.com/recmo/uint/releases/tag/v1.15.0
-[1.14.0]: https://github.com/recmo/uint/releases/tag/v1.14.0
-[1.13.1]: https://github.com/recmo/uint/releases/tag/v1.13.1
-[1.13.0]: https://github.com/recmo/uint/releases/tag/v1.13.0
-[1.12.4]: https://github.com/recmo/uint/releases/tag/v1.12.4
-[1.12.3]: https://github.com/recmo/uint/releases/tag/v1.12.3
-[1.12.1]: https://github.com/recmo/uint/releases/tag/v1.12.1
-[1.12.0]: https://github.com/recmo/uint/releases/tag/v1.12.0
-[1.11.1]: https://github.com/recmo/uint/releases/tag/v1.11.1
-[1.11.0]: https://github.com/recmo/uint/releases/tag/v1.11.0
-[1.10.1]: https://github.com/recmo/uint/releases/tag/v1.10.1
-[1.10.0]: https://github.com/recmo/uint/releases/tag/v1.10.0
-[1.9.0]: https://github.com/recmo/uint/releases/tag/v1.9.0
-[1.8.0]: https://github.com/recmo/uint/releases/tag/v1.8.0
-[1.7.0]: https://github.com/recmo/uint/releases/tag/v1.7.0
-[1.6.0]: https://github.com/recmo/uint/releases/tag/v1.6.0
-[1.5.1]: https://github.com/recmo/uint/releases/tag/v1.5.1
-[1.5.0]: https://github.com/recmo/uint/releases/tag/v1.5.0
-[1.4.1]: https://github.com/recmo/uint/releases/tag/v1.4.1
-[1.4.0]: https://github.com/recmo/uint/releases/tag/v1.4.0
-[1.3.0]: https://github.com/recmo/uint/releases/tag/v1.3.0
-[1.2.0]: https://github.com/recmo/uint/releases/tag/v1.2.0
-[1.1.0]: https://github.com/recmo/uint/releases/tag/v1.1.0
-[1.0.0]: https://github.com/recmo/uint/releases/tag/v1.0.0
-[0.3.0]: https://github.com/recmo/uint/releases/tag/v0.3.0
-[0.2.1]: https://github.com/recmo/uint/releases/tag/v0.2.1
-[0.2.0]: https://github.com/recmo/uint/releases/tag/v0.2.0
-[0.1.0]: https://github.com/recmo/uint/releases/tag/v0.1.0
+[unreleased]: https://github.com/alloy-rs/ruint/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.18.0
+[1.17.2]: https://github.com/alloy-rs/ruint/releases/tag/v1.17.2
+[1.17.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.17.1
+[1.17.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.17.0
+[1.16.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.16.0
+[1.15.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.15.0
+[1.14.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.14.0
+[1.13.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.13.1
+[1.13.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.13.0
+[1.12.4]: https://github.com/alloy-rs/ruint/releases/tag/v1.12.4
+[1.12.3]: https://github.com/alloy-rs/ruint/releases/tag/v1.12.3
+[1.12.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.12.1
+[1.12.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.12.0
+[1.11.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.11.1
+[1.11.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.11.0
+[1.10.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.10.1
+[1.10.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.10.0
+[1.9.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.9.0
+[1.8.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.8.0
+[1.7.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.7.0
+[1.6.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.6.0
+[1.5.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.5.1
+[1.5.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.5.0
+[1.4.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.4.1
+[1.4.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.4.0
+[1.3.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.3.0
+[1.2.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.2.0
+[1.1.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.1.0
+[1.0.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.0.0
+[0.3.0]: https://github.com/alloy-rs/ruint/releases/tag/v0.3.0
+[0.2.1]: https://github.com/alloy-rs/ruint/releases/tag/v0.2.1
+[0.2.0]: https://github.com/alloy-rs/ruint/releases/tag/v0.2.0
+[0.1.0]: https://github.com/alloy-rs/ruint/releases/tag/v0.1.0

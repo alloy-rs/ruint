@@ -156,7 +156,7 @@ macro_rules! as_primitives {
 
 #[cfg(test)]
 mod tests {
-    // https://github.com/recmo/uint/issues/359
+    // https://github.com/alloy-rs/ruint/issues/359
     ruint_macro::uint_with_path! {
         [crate]
         const _A: [crate::aliases::U256; 2] = [

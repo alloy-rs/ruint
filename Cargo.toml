@@ -32,8 +32,8 @@ edition = "2024"
 rust-version = "1.90"
 authors = ["Remco Bloemen <remco@wicked.ventures>"]
 license = "MIT"
-homepage = "https://github.com/recmo/uint"
-repository = "https://github.com/recmo/uint"
+homepage = "https://github.com/alloy-rs/ruint"
+repository = "https://github.com/alloy-rs/ruint"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
