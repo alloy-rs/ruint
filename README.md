@@ -2,11 +2,11 @@
 
 [![Crates.io Version](https://img.shields.io/crates/v/ruint)](https://crates.io/crates/ruint)
 [![docs.rs](https://img.shields.io/docsrs/ruint)](https://docs.rs/ruint)
-[![MIT License](https://img.shields.io/github/license/recmo/uint)](https://github.com/recmo/uint/blob/main/LICENSE)
-[![dependency status](https://deps.rs/repo/github/recmo/uint/status.svg)](https://deps.rs/repo/github/recmo/uint)
-[![codecov](https://codecov.io/gh/recmo/uint/branch/main/graph/badge.svg?token=WBPZ9U4TTO)](https://codecov.io/gh/recmo/uint)
-[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/recmo/uint)
-[![CI](https://github.com/recmo/uint/actions/workflows/ci.yml/badge.svg)](https://github.com/recmo/uint/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/github/license/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/blob/main/LICENSE)
+[![dependency status](https://deps.rs/repo/github/alloy-rs/ruint/status.svg)](https://deps.rs/repo/github/alloy-rs/ruint)
+[![codecov](https://codecov.io/gh/alloy-rs/ruint/branch/main/graph/badge.svg?token=WBPZ9U4TTO)](https://codecov.io/gh/alloy-rs/ruint)
+[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/alloy-rs/ruint)
+[![CI](https://github.com/alloy-rs/ruint/actions/workflows/ci.yml/badge.svg)](https://github.com/alloy-rs/ruint/actions/workflows/ci.yml)
 
 Implements [`Uint<BITS, LIMBS>`], the ring of numbers modulo $2^{\mathsf{BITS}}$. It requires two
 generic arguments: the number of bits and the number of 64-bit 'limbs' required to store those bits.
@@ -147,6 +147,7 @@ named feature flag.
 * [`ark-ff`](https://docs.rs/ark-ff): Implements conversion to/from the [`BigInteger*`](https://docs.rs/ark-ff/0.3.0/ark_ff/biginteger/index.html) types and the [`Fp*`](https://docs.rs/ark-ff/0.3.0/ark_ff/fields/models/index.html) types from `ark-ff@0.3`.
 * [`ark-ff-04`](https://docs.rs/ark-ff): Implements conversion to/from [`BigInt`](https://docs.rs/ark-ff/0.4.2/ark_ff/biginteger/struct.BigInt.html) and [`Fp`](https://docs.rs/ark-ff/0.4.2/ark_ff/fields/models/fp/struct.Fp.html) types from `ark-ff@0.4`.
 * [`ark-ff-05`](https://docs.rs/ark-ff): Implements conversion to/from [`BigInt`](https://docs.rs/ark-ff/0.5.0/ark_ff/biginteger/struct.BigInt.html) and [`Fp`](https://docs.rs/ark-ff/0.5.0/ark_ff/fields/models/fp/struct.Fp.html) types from `ark-ff@0.5`.
+* [`ark-ff-06`](https://docs.rs/ark-ff): Implements conversion to/from [`BigInt`](https://docs.rs/ark-ff/0.6.0/ark_ff/biginteger/struct.BigInt.html) and [`Fp`](https://docs.rs/ark-ff/0.6.0/ark_ff/fields/models/fp/struct.Fp.html) types from `ark-ff@0.5`.
 * [`sqlx`](https://docs.rs/sqlx): Implements database agnostic storage as byte array. Requires
   `sqlx` to be used with the `tokio-native-tls` runtime, due to issue [sqlx#1627](https://github.com/launchbadge/sqlx/issues/1627).
 * [`zeroize`](https://docs.rs/zeroize): Implements the [`Zeroize`](https://docs.rs/zeroize/latest/zeroize/trait.Zeroize.html) trait. This makes [`Uint`] and [`Bits`] compatible with the [`secrecy`](https://crates.io/crates/secrecy) crate.
@@ -205,9 +206,9 @@ RUSTDOCFLAGS="-Z unstable-options --show-coverage"  cargo doc --workspace --all-
 
 ---
 
-[![lines of code](https://img.shields.io/tokei/lines/github/recmo/uint)](https://github.com/recmo/uint)
-[![GitHub contributors](https://img.shields.io/github/contributors/recmo/uint)](https://github.com/recmo/uint/graphs/contributors)
-[![GitHub issues](https://img.shields.io/github/issues/recmo/uint)](https://github.com/recmo/uint/issues)
-[![GitHub pull requests](https://img.shields.io/github/issues-pr/recmo/uint?label=PRs)](https://github.com/recmo/uint/pulls)
-[![GitHub Repo stars](https://img.shields.io/github/stars/recmo/uint)](https://star-history.com/#recmo/uint&Date)
+[![lines of code](https://img.shields.io/tokei/lines/github/alloy-rs/ruint)](https://github.com/alloy-rs/ruint)
+[![GitHub contributors](https://img.shields.io/github/contributors/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/graphs/contributors)
+[![GitHub issues](https://img.shields.io/github/issues/alloy-rs/ruint)](https://github.com/alloy-rs/ruint/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/alloy-rs/ruint?label=PRs)](https://github.com/alloy-rs/ruint/pulls)
+[![GitHub Repo stars](https://img.shields.io/github/stars/alloy-rs/ruint)](https://star-history.com/#alloy-rs/ruint&Date)
 [![crates.io](https://img.shields.io/crates/d/ruint)](https://crates.io/crates/ruint)
