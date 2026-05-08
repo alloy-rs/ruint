@@ -77,6 +77,7 @@ arbitrary = { version = "1", optional = true, default-features = false }
 ark-ff-03 = { version = "0.3.0", package = "ark-ff", optional = true, default-features = false }
 ark-ff-04 = { version = "0.4.0", package = "ark-ff", optional = true, default-features = false }
 ark-ff-05 = { version = "0.5.0", package = "ark-ff", optional = true, default-features = false }
+ark-ff-06 = { version = "0.6.0", package = "ark-ff", optional = true, default-features = false }
 bigdecimal = { version = "0.4", optional = true, default-features = false }
 bincode-2 = { version = "2", package = "bincode", optional = true, default-features = false }
 bn-rs = { version = "0.2", optional = true, default-features = true }
@@ -132,6 +133,7 @@ ruint = { path = ".", features = ["arbitrary", "proptest"] }
 ark-bn254-03 = { version = "0.3.0", package = "ark-bn254" }
 ark-bn254-04 = { version = "0.4.0", package = "ark-bn254" }
 ark-bn254-05 = { version = "0.5.0", package = "ark-bn254" }
+ark-bn254-06 = { version = "0.6.0", package = "ark-bn254" }
 
 rand-09 = { version = "0.9", package = "rand" }
 
@@ -158,6 +160,7 @@ std = [
     "ark-ff-03?/std",
     "ark-ff-04?/std",
     "ark-ff-05?/std",
+    "ark-ff-06?/std",
     "bytes?/std",
     "fastrlp-03?/std",
     "fastrlp-04?/std",
@@ -195,6 +198,7 @@ arbitrary = ["dep:arbitrary", "std"]
 ark-ff = ["dep:ark-ff-03"]
 ark-ff-04 = ["dep:ark-ff-04"]
 ark-ff-05 = ["dep:ark-ff-05"]
+ark-ff-06 = ["dep:ark-ff-06"]
 bigdecimal = ["dep:bigdecimal", "num-bigint"]
 bincode-2 = ["dep:bincode-2"]
 bn-rs = ["dep:bn-rs", "std"]
