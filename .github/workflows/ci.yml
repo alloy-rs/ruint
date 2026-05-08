@@ -12,10 +12,12 @@ jobs:
   accept:
     name: Accept
     runs-on: ubuntu-latest
+    if: always()
     needs: [test, feature-checks, clippy, docs, fmt]
     steps:
-      - name: Accept
-        run: "true"
+      - name: Check all needs succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: exit 1
 
   test:
     runs-on: ubuntu-latest
