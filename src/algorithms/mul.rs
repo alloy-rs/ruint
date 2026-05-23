@@ -56,10 +56,10 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
     let mut overflow = false;
     let mut j = 0;
     while j < b.len() {
-        let b_limb = b[j];
+        let b = b[j];
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
-            let carry = addmul_nx1(target, a, b_limb);
+            let carry = addmul_nx1(target, a, b);
             let carry = add_nx1(rest, carry);
             overflow |= carry != 0;
         } else {
@@ -68,7 +68,7 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
                 break;
             }
             let (a, _) = a.split_at(lhs.len());
-            addmul_nx1(lhs, a, b_limb);
+            addmul_nx1(lhs, a, b);
         }
         (_, lhs) = lhs.split_at_mut(1);
         j += 1;
