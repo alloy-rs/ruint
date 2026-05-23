@@ -301,6 +301,37 @@ mod tests {
     }
 
     #[test]
+    fn test_from_str_radix_slow() {
+        type U8 = Uint<8, 1>;
+
+        assert_eq!(U8::from_str_radix("Z", 64), Ok(U8::from(25)));
+        assert_eq!(U8::from_str_radix("a", 64), Ok(U8::from(26)));
+        assert_eq!(U8::from_str_radix("f", 64), Ok(U8::from(31)));
+        assert_eq!(U8::from_str_radix("0", 64), Ok(U8::from(52)));
+        assert_eq!(U8::from_str_radix("9", 64), Ok(U8::from(61)));
+        assert_eq!(U8::from_str_radix("+", 64), Ok(U8::from(62)));
+        assert_eq!(U8::from_str_radix("-", 64), Ok(U8::from(62)));
+        assert_eq!(U8::from_str_radix("/", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix(",", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix("_", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix("=\r\n_", 64), Ok(U8::from(63)));
+        assert_eq!(
+            U8::from_str_radix("?", 64),
+            Err(ParseError::InvalidDigit('?'))
+        );
+        assert_eq!(
+            U8::from_str_radix("_", 37),
+            Err(ParseError::BaseConvertError(
+                BaseConvertError::InvalidDigit(63, 37)
+            ))
+        );
+        assert_eq!(
+            U8::from_str_radix("__", 64),
+            Err(ParseError::BaseConvertError(BaseConvertError::Overflow))
+        );
+    }
+
+    #[test]
     fn test_pow2_overflow() {
         type U8 = Uint<8, 1>;
         assert_eq!(U8::from_str("0xff"), Ok(U8::from(255)));
