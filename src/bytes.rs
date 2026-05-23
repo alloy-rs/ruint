@@ -104,7 +104,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         #[cfg(target_endian = "big")]
         {
             let mut limbs = self.limbs;
-            crate::const_for!(i in 0..LIMBS => {
+            const_range_for!(i in 0..LIMBS => {
                 limbs[i] = limbs[i].to_le();
             });
             // SAFETY: BYTES <= LIMBS * 8
@@ -153,7 +153,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         // by LLVM and degrades to 32 individual byte loads/stores for U256.
         if BYTES == LIMBS * 8 {
             let mut limbs_be = [0u64; LIMBS];
-            crate::const_for!(i in 0..LIMBS => {
+            const_range_for!(i in 0..LIMBS => {
                 limbs_be[i] = self.limbs[LIMBS - 1 - i].to_be();
             });
             // SAFETY: BYTES == size_of::<[u64; LIMBS]>().
@@ -245,7 +245,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
             let end = bytes.as_ptr_range().end;
-            crate::const_for!(i in 0..LIMBS => {
+            const_range_for!(i in 0..LIMBS => {
                 limbs[i] = u64::from_be_bytes(unsafe { *end.sub((i + 1) * 8).cast() });
             });
             return Some(Self::from_limbs(limbs));
@@ -253,7 +253,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
         let mut limbs = [0; LIMBS];
         let mut c = bytes.len();
-        crate::const_for!(i in 0..bytes.len() => {
+        const_range_for!(i in 0..bytes.len() => {
             c -= 1;
             let (limb, byte) = (i / 8, i % 8);
             limbs[limb] += (bytes[c] as u64) << (byte * 8);
@@ -318,14 +318,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if Self::BYTES % 8 == 0 && bytes.len() == Self::BYTES {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
-            crate::const_for!(i in 0..LIMBS => {
+            const_range_for!(i in 0..LIMBS => {
                 limbs[i] = u64::from_le_bytes(unsafe { *bytes.as_ptr().add(i * 8).cast() });
             });
             return Some(Self::from_limbs(limbs));
         }
 
         let mut limbs = [0; LIMBS];
-        crate::const_for!(i in 0..bytes.len() => {
+        const_range_for!(i in 0..bytes.len() => {
             let (limb, byte) = (i / 8, i % 8);
             limbs[limb] += (bytes[i] as u64) << (byte * 8);
         });

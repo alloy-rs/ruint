@@ -1,21 +1,6 @@
-/// Const-compatible for loops, plus compile time loops with a `const` variable
-/// for testing.
+/// Compile time for loops with a `const` variable for testing.
 ///
-/// Repeats a block of code over ranges, slices, or with different values
-/// assigned to a constant.
-///
-/// ```rust
-/// # use ruint::const_for;
-/// const VALUES: &[u8] = &[1, 2, 3];
-/// const SUM: u8 = {
-///     let mut sum = 0;
-///     const_for!(value in VALUES => {
-///         sum += *value;
-///     });
-///     sum
-/// };
-/// assert_eq!(SUM, 6);
-/// ```
+/// Repeats a block of code with different values assigned to a constant.
 ///
 /// ```rust
 /// # use ruint::{const_for, nlimbs, Uint};
@@ -55,13 +40,12 @@
 ///     });
 /// });
 /// ```
-#[macro_export]
-macro_rules! const_for {
+macro_rules! const_range_for {
     ($i:ident in $start:tt.. $end:expr => $x:block) => {
-        $crate::const_for!(@range $i, $start, $end, $x)
+        const_range_for!(@range $i, $start, $end, $x)
     };
     ($i:ident in ($start:expr).. $end:expr => $x:block) => {
-        $crate::const_for!(@range $i, $start, $end, $x)
+        const_range_for!(@range $i, $start, $end, $x)
     };
     (@range $i:ident, $start:expr, $end:expr, $x:block) => {{
         let mut iter = $start;
@@ -71,6 +55,17 @@ macro_rules! const_for {
             $x
         }
     }};
+    ($i:ident in $slice:expr => $x:block) => {{
+        let slice = $slice;
+        const_range_for!(i in 0..slice.len() => {
+            let $i = &slice[i];
+            $x
+        })
+    }};
+}
+
+#[macro_export]
+macro_rules! const_for {
     ($C:ident in [$($n:expr),*] $x:block) => {
         $({
             const $C: usize = $n;
@@ -92,11 +87,4 @@ macro_rules! const_for {
             if $($t)*
         });
     };
-    ($i:ident in $slice:expr => $x:block) => {{
-        let slice = $slice;
-        $crate::const_for!(i in 0..slice.len() => {
-            let $i = &slice[i];
-            $x
-        })
-    }};
 }
