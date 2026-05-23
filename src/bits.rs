@@ -262,7 +262,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[must_use]
     pub const fn count_ones(&self) -> usize {
         let mut ones = 0;
-        const_range_for!(limb in self.as_limbs() => {
+        const_range_for!(limb in ref self.as_limbs() => {
             ones += limb.count_ones() as usize;
         });
         ones
