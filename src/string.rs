@@ -115,20 +115,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[cold]
     const fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
         let mut result = Self::ZERO;
-        let bytes = src.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
+        let mut bytes = src.as_bytes();
+        while let [b, rest @ ..] = bytes {
+            let b = *b;
+            bytes = rest;
             let digit = match b {
                 b'A'..=b'Z' => b - b'A',
                 b'a'..=b'f' => b - b'a' + 26,
                 b'0'..=b'9' => b - b'0' + 52,
                 b'+' | b'-' => 62,
                 b'/' | b',' | b'_' => 63,
-                b'=' | b'\r' | b'\n' => {
-                    i += 1;
-                    continue;
-                }
+                b'=' | b'\r' | b'\n' => continue,
                 _ => return Err(ParseError::InvalidDigit(b as char)),
             };
             let digit = digit as u64;
@@ -141,7 +138,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 Ok(()) => {}
                 Err(e) => return Err(e),
             }
-            i += 1;
         }
         Ok(result)
     }
@@ -153,11 +149,10 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits_per_digit = radix.trailing_zeros() as usize;
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
-        let bytes = src.as_bytes();
-        let mut i = bytes.len();
-        while i > 0 {
-            i -= 1;
-            let b = bytes[i];
+        let mut bytes = src.as_bytes();
+        while let [rest @ .., b] = bytes {
+            let b = *b;
+            bytes = rest;
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -197,15 +192,12 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let mut result = Self::ZERO;
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
-        let bytes = src.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
+        let mut bytes = src.as_bytes();
+        while let [b, rest @ ..] = bytes {
+            let b = *b;
+            bytes = rest;
             let digit = match decode_digit(b, radix) {
-                Ok(None) => {
-                    i += 1;
-                    continue;
-                }
+                Ok(None) => continue,
                 Ok(Some(d)) => d,
                 Err(e) => return Err(e),
             };
@@ -219,7 +211,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 chunk_val = 0;
                 chunk_digits = 0;
             }
-            i += 1;
         }
         if chunk_digits > 0 {
             let mut tail_base = radix;
