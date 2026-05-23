@@ -233,8 +233,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         addend: u64,
     ) -> Result<(), ParseError> {
         let mut carry = addend;
-        const_range_for!(i in 0..LIMBS => {
-            (limbs[i], carry) = DW::split(DW::muladd(limbs[i], factor, carry));
+        const_range_for!(limb in mut *limbs => {
+            (*limb, carry) = DW::split(DW::muladd(*limb, factor, carry));
         });
         if carry > 0 || (LIMBS != 0 && limbs[LIMBS - 1] > Self::MASK) {
             return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
