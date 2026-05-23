@@ -63,11 +63,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return (Self::ZERO, false);
         }
         let mut carry = false;
-        let mut i = 0;
-        while i < LIMBS {
+        const_range_for!(i in 0..LIMBS => {
             (self.limbs[i], carry) = carrying_add(self.limbs[i], rhs.limbs[i], carry);
-            i += 1;
-        }
+        });
         let overflow = carry | (self.limbs[LIMBS - 1] > Self::MASK);
         (self.masked(), overflow)
     }
@@ -96,11 +94,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return (Self::ZERO, false);
         }
         let mut borrow = false;
-        let mut i = 0;
-        while i < LIMBS {
+        const_range_for!(i in 0..LIMBS => {
             (self.limbs[i], borrow) = borrowing_sub(self.limbs[i], rhs.limbs[i], borrow);
-            i += 1;
-        }
+        });
         let overflow = borrow | (self.limbs[LIMBS - 1] > Self::MASK);
         (self.masked(), overflow)
     }

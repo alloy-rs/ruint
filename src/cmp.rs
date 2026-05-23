@@ -132,11 +132,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let a = self.as_limbs();
         let b = other.as_limbs();
         let mut equal_count = 0usize;
-        let mut i = 0;
-        while i < LIMBS {
+        const_range_for!(i in 0..LIMBS => {
             equal_count += (a[i] == b[i]) as usize;
-            i += 1;
-        }
+        });
         equal_count == LIMBS
     }
 }
