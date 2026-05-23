@@ -63,7 +63,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return (Self::ZERO, false);
         }
         let mut carry = false;
-        crate::const_for!(i in 0..LIMBS => {
+        crate::const_range_for!(i in 0..LIMBS => {
             (self.limbs[i], carry) = carrying_add(self.limbs[i], rhs.limbs[i], carry);
         });
         let overflow = carry | (self.limbs[LIMBS - 1] > Self::MASK);
@@ -94,7 +94,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return (Self::ZERO, false);
         }
         let mut borrow = false;
-        crate::const_for!(i in 0..LIMBS => {
+        crate::const_range_for!(i in 0..LIMBS => {
             (self.limbs[i], borrow) = borrowing_sub(self.limbs[i], rhs.limbs[i], borrow);
         });
         let overflow = borrow | (self.limbs[LIMBS - 1] > Self::MASK);
