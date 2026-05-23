@@ -150,8 +150,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
         let mut bytes = src.as_bytes();
-        while let [rest @ .., b] = bytes {
-            let b = *b;
+        while let &[ref rest @ .., b] = bytes {
             bytes = rest;
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
@@ -193,8 +192,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
         let mut bytes = src.as_bytes();
-        while let [b, rest @ ..] = bytes {
-            let b = *b;
+        while let &[b, ref rest @ ..] = bytes {
             bytes = rest;
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
