@@ -29,7 +29,7 @@ pub use self::{
         div_nx1_normalized, div_nx2, div_nx2_normalized,
     },
 };
-use crate::{algorithms::DoubleWord, utils::cold_path};
+use crate::{algorithms::DW, utils::cold_path};
 
 /// ⚠️ Division with remainder.
 #[doc = crate::algorithms::unstable_warning!()]
@@ -77,7 +77,7 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
     }
     debug_assert_ne!(*numerator.last().unwrap(), 0);
 
-    if super::cmp(numerator, divisor).is_lt() {
+    if super::lt(numerator, divisor) {
         // Numerator is smaller than the divisor: (q, r) = (0, numerator)
         cold_path();
         // `a < b` implies `a.len() <= b.len()`,
@@ -127,8 +127,8 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
             }
         }
         [d0, d1] => {
-            let d = u128::join(*d1, *d0);
-            (*d0, *d1) = unsafe { div_nx2(numerator, d) }.split();
+            let d = DW::join(*d1, *d0);
+            (*d0, *d1) = DW::split(unsafe { div_nx2(numerator, d) });
         }
         _ => unsafe { div_nxm(numerator, divisor) },
     }

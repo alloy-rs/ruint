@@ -1,6 +1,6 @@
 //! Knuth division
 
-use super::{DoubleWord, reciprocal::reciprocal_2, small::div_3x2};
+use super::{DW, reciprocal::reciprocal_2, small::div_3x2};
 use crate::{
     algorithms::{add::carrying_add_n, mul::submul_nx1},
     utils::{UncheckedSlice, likely, unlikely},
@@ -32,14 +32,14 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
     let m = numerator.len() - n - 1;
 
     // Compute the divisor double limb and reciprocal
-    let d = u128::join(divisor[n - 1], divisor[n - 2]);
+    let d = DW::join(divisor[n - 1], divisor[n - 2]);
 
     let v = unsafe { reciprocal_2(d) };
 
     // Compute the quotient one limb at a time.
     for j in (0..=m).rev() {
         // Fetch the first three limbs of the numerator.
-        let n21 = u128::join(numerator[j + n], numerator[j + n - 1]);
+        let n21 = DW::join(numerator[j + n], numerator[j + n - 1]);
         let n0 = numerator[j + n - 2];
         debug_assert!(n21 <= d);
 
@@ -62,8 +62,8 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
         // computation. We still need to carry propagate into these limbs.
         let borrow = submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q);
         let (r, borrow) = r.overflowing_sub(u128::from(borrow));
-        numerator[j + n - 2] = r.low();
-        numerator[j + n - 1] = r.high();
+        numerator[j + n - 2] = DW::low(r);
+        numerator[j + n - 1] = DW::high(r);
 
         // If we have a carry then the quotient was one too large.
         // We correct by decrementing the quotient and adding one divisor back.
@@ -109,8 +109,8 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
     // Compute normalized divisor double-word and reciprocal.
     // TODO: Delegate to div_nxm_normalized if normalized.
     let (d, shift) = {
-        let d = u128::join(divisor[n - 1], divisor[n - 2]);
-        let shift = d.high().leading_zeros();
+        let d = DW::join(divisor[n - 1], divisor[n - 2]);
+        let shift = DW::high(d).leading_zeros();
         (
             if shift == 0 {
                 d
@@ -132,7 +132,7 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
         // Fetch the first three limbs of the shifted numerator starting at `j + n`.
         let (n21, n0) = {
             let n2 = numerator.get(j + n).copied().unwrap_or_default();
-            let n21 = u128::join(n2, numerator[j + n - 1]);
+            let n21 = DW::join(n2, numerator[j + n - 1]);
             let n0 = numerator[j + n - 2];
             if shift == 0 {
                 (n21, n0)
@@ -160,8 +160,8 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
                 let borrow = if shift == 0 {
                     let borrow = submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q);
                     let (r, borrow) = r.overflowing_sub(u128::from(borrow));
-                    numerator[j + n - 2] = r.low();
-                    numerator[j + n - 1] = r.high();
+                    numerator[j + n - 2] = DW::low(r);
+                    numerator[j + n - 1] = DW::high(r);
                     borrow
                 } else {
                     // OPT: Can we re-use `r` here somehow? The problem is we can not just

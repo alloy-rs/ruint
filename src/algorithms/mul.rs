@@ -1,6 +1,6 @@
 #![allow(clippy::module_name_repetitions)]
 
-use crate::algorithms::{DoubleWord, borrowing_sub};
+use crate::algorithms::{DW, borrowing_sub};
 
 /// ⚠️ Computes `result += a * b` and checks for overflow.
 #[doc = crate::algorithms::unstable_warning!()]
@@ -100,7 +100,7 @@ fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
         // Widening multiply-accumulate for all but the last position.
         let i = n - j - 1;
         for i in 0..i {
-            (lhs[j + i], carry) = u128::muladd2(a[i], b[j], carry, lhs[j + i]).split();
+            (lhs[j + i], carry) = DW::split(DW::muladd2(a[i], b[j], carry, lhs[j + i]));
         }
         // Last position: the carry out is discarded (it would go beyond n
         // limbs), so use truncated arithmetic to reduce register pressure.
@@ -118,7 +118,7 @@ pub fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
         return 0;
     }
     for lhs in lhs {
-        (*lhs, a) = u128::add(*lhs, a).split();
+        (*lhs, a) = DW::split(DW::add(*lhs, a));
         if a == 0 {
             return 0;
         }
@@ -132,7 +132,7 @@ pub fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 pub fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
     for lhs in lhs {
-        (*lhs, carry) = u128::muladd(*lhs, a, carry).split();
+        (*lhs, carry) = DW::split(DW::muladd(*lhs, a, carry));
     }
     carry
 }
@@ -152,7 +152,7 @@ pub fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     for i in 0..a.len() {
-        (lhs[i], carry) = u128::muladd2(a[i], b, carry, lhs[i]).split();
+        (lhs[i], carry) = DW::split(DW::muladd2(a[i], b, carry, lhs[i]));
     }
     carry
 }
@@ -176,7 +176,7 @@ pub fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     for i in 0..a.len() {
         // Compute product limbs
         let limb;
-        (limb, carry) = u128::muladd(a[i], b, carry).split();
+        (limb, carry) = DW::split(DW::muladd(a[i], b, carry));
 
         // Subtract
         (lhs[i], borrow) = borrowing_sub(lhs[i], limb, borrow);
