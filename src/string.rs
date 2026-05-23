@@ -214,7 +214,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
         if chunk_digits > 0 {
             let mut tail_base = radix;
-            crate::const_for!(i in 1..chunk_digits => {
+            crate::const_for!(_i in 1..chunk_digits => {
                 tail_base *= radix;
             });
             match Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val) {
