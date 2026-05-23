@@ -184,21 +184,24 @@ mod tests {
     #[test]
     fn test_const_mul() {
         type U64 = Uint<64, 1>;
-        type U128 = Uint<128, 2>;
 
-        const A: U64 = U64::from_limbs([u64::MAX]);
-        const B: U64 = U64::from_limbs([2]);
-        const WRAPPING: U64 = A.wrapping_mul(B);
-        const OVERFLOWING: (U64, bool) = A.overflowing_mul(B);
-        const CHECKED: Option<U64> = A.checked_mul(B);
-        const SATURATING: U64 = A.saturating_mul(B);
-        const WIDENING: U128 = A.widening_mul::<64, 1, 128, 2>(B);
+        const {
+            let a = U64::from_limbs([u64::MAX]);
+            let b = U64::from_limbs([2]);
+            let wrapping = a.wrapping_mul(b);
+            let (overflowing, overflow) = a.overflowing_mul(b);
+            let checked = a.checked_mul(b);
+            let saturating = a.saturating_mul(b);
+            let widening = a.widening_mul::<64, 1, 128, 2>(b);
 
-        assert_eq!(WRAPPING, U64::from_limbs([u64::MAX - 1]));
-        assert_eq!(OVERFLOWING, (WRAPPING, true));
-        assert_eq!(CHECKED, None);
-        assert_eq!(SATURATING, U64::MAX);
-        assert_eq!(WIDENING, U128::from_limbs([u64::MAX - 1, 1]));
+            assert!(wrapping.as_limbs()[0] == u64::MAX - 1);
+            assert!(overflowing.as_limbs()[0] == wrapping.as_limbs()[0]);
+            assert!(overflow);
+            assert!(checked.is_none());
+            assert!(saturating.as_limbs()[0] == U64::MAX.as_limbs()[0]);
+            assert!(widening.as_limbs()[0] == u64::MAX - 1);
+            assert!(widening.as_limbs()[1] == 1);
+        }
     }
 
     #[test]
