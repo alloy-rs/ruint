@@ -119,9 +119,15 @@ macro_rules! const_range_for {
         let range = slice.as_ptr_range();
         let mut ptr = range.start;
         let end = range.end;
+        // This mirrors the non-ZST `core::slice::Iter::next` pointer walk until
+        // const fns can use normal `for` loops again.
         while unsafe { end.offset_from(ptr) } != 0 {
             let old = ptr;
+            // SAFETY: `ptr` is not `end`, so advancing by one stays within the
+            // slice range or reaches the one-past-end pointer.
             ptr = unsafe { ptr.add(1) };
+            // SAFETY: `old` came from `slice.as_ptr_range()` and was checked to
+            // be before `end`, so it points to a live element.
             let $p = unsafe { &*old };
             $x
         }
@@ -131,8 +137,14 @@ macro_rules! const_range_for {
         let range = slice.as_ptr_range();
         let start = range.start;
         let mut ptr = range.end;
+        // This mirrors the non-ZST `core::slice::Iter::next_back` pointer walk
+        // until const fns can use normal `for` loops again.
         while unsafe { ptr.offset_from(start) } != 0 {
+            // SAFETY: `ptr` is after `start`, so moving back by one stays within
+            // the slice range and points to the next element from the back.
             ptr = unsafe { ptr.sub(1) };
+            // SAFETY: `ptr` came from `slice.as_ptr_range()` and was moved back
+            // into the slice range before dereferencing.
             let $p = unsafe { &*ptr };
             $x
         }
@@ -142,9 +154,16 @@ macro_rules! const_range_for {
         let range = slice.as_mut_ptr_range();
         let mut ptr = range.start;
         let end = range.end;
+        // This mirrors the non-ZST `core::slice::IterMut::next` pointer walk
+        // until const fns can use normal `for` loops again.
         while unsafe { end.offset_from(ptr) } != 0 {
             let old = ptr;
+            // SAFETY: `ptr` is not `end`, so advancing by one stays within the
+            // slice range or reaches the one-past-end pointer.
             ptr = unsafe { ptr.add(1) };
+            // SAFETY: `old` came from `slice.as_mut_ptr_range()` and was checked
+            // to be before `end`. The pointer is advanced before yielding, which
+            // matches `IterMut` and avoids yielding the same element twice.
             let $p = unsafe { &mut *old };
             $x
         }
