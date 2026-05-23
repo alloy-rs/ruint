@@ -34,55 +34,25 @@ pub use self::{
     mul_redc::{mul_redc, square_redc},
 };
 
-pub(crate) trait DoubleWord<T: Default>: Sized + Copy {
+pub(crate) struct DW;
+
+#[allow(clippy::cast_lossless, clippy::cast_possible_truncation)]
+impl DW {
     /// `high << 64 | low`
-    fn join(high: T, low: T) -> Self;
+    #[inline(always)]
+    pub(crate) const fn join(high: u64, low: u64) -> u128 {
+        ((high as u128) << 64) | low as u128
+    }
+
     /// `(low, high)`
-    fn split(self) -> (T, T);
+    #[inline(always)]
+    pub(crate) const fn split(double: u128) -> (u64, u64) {
+        (double as u64, (double >> 64) as u64)
+    }
 
     /// `a * b + c + d`
-    fn muladd2(a: T, b: T, c: T, d: T) -> Self;
-
-    /// `a + b`
     #[inline(always)]
-    fn add(a: T, b: T) -> Self {
-        Self::muladd2(T::default(), T::default(), a, b)
-    }
-    /// `a * b`
-    #[inline(always)]
-    fn mul(a: T, b: T) -> Self {
-        Self::muladd2(a, b, T::default(), T::default())
-    }
-    /// `a * b + c`
-    #[inline(always)]
-    fn muladd(a: T, b: T, c: T) -> Self {
-        Self::muladd2(a, b, c, T::default())
-    }
-
-    #[inline(always)]
-    fn high(self) -> T {
-        self.split().1
-    }
-    #[inline(always)]
-    fn low(self) -> T {
-        self.split().0
-    }
-}
-
-#[allow(clippy::cast_possible_truncation)]
-impl DoubleWord<u64> for u128 {
-    #[inline(always)]
-    fn join(high: u64, low: u64) -> Self {
-        (Self::from(high) << 64) | Self::from(low)
-    }
-
-    #[inline(always)]
-    fn split(self) -> (u64, u64) {
-        (self as u64, (self >> 64) as u64)
-    }
-
-    #[inline(always)]
-    fn muladd2(a: u64, b: u64, c: u64, d: u64) -> Self {
+    pub(crate) const fn muladd2(a: u64, b: u64, c: u64, d: u64) -> u128 {
         #[cfg(feature = "nightly")]
         {
             let (low, high) = u64::carrying_mul_add(a, b, c, d);
@@ -90,8 +60,36 @@ impl DoubleWord<u64> for u128 {
         }
         #[cfg(not(feature = "nightly"))]
         {
-            Self::from(a) * Self::from(b) + Self::from(c) + Self::from(d)
+            (a as u128) * (b as u128) + (c as u128) + (d as u128)
         }
+    }
+
+    /// `a + b`
+    #[inline(always)]
+    pub(crate) const fn add(a: u64, b: u64) -> u128 {
+        Self::muladd2(0, 0, a, b)
+    }
+
+    /// `a * b`
+    #[inline(always)]
+    pub(crate) const fn mul(a: u64, b: u64) -> u128 {
+        Self::muladd2(a, b, 0, 0)
+    }
+
+    /// `a * b + c`
+    #[inline(always)]
+    pub(crate) const fn muladd(a: u64, b: u64, c: u64) -> u128 {
+        Self::muladd2(a, b, c, 0)
+    }
+
+    #[inline(always)]
+    pub(crate) const fn high(double: u128) -> u64 {
+        Self::split(double).1
+    }
+
+    #[inline(always)]
+    pub(crate) const fn low(double: u128) -> u64 {
+        Self::split(double).0
     }
 }
 

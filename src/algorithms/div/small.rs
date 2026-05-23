@@ -9,7 +9,7 @@
 
 use super::reciprocal::{reciprocal, reciprocal_2};
 use crate::{
-    algorithms::DoubleWord,
+    algorithms::DW,
     utils::{UncheckedSlice, unlikely},
 };
 
@@ -44,7 +44,7 @@ pub unsafe fn div_nx1_normalized(u: &mut [u64], d: u64) -> u64 {
     let v = unsafe { reciprocal(d) };
     let mut r: u64 = 0;
     for u in u.iter_mut().rev() {
-        let n = u128::join(r, *u);
+        let n = DW::join(r, *u);
         let (q, r0) = div_2x1(n, d, v);
         *u = q;
         r = r0;
@@ -92,7 +92,7 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
         let u = (upper << shift) | (lower >> (64 - shift));
 
         // Compute quotient
-        let n = u128::join(remainder, u);
+        let n = DW::join(remainder, u);
         let (q, r) = div_2x1(n, divisor, reciprocal);
 
         // Store quotient
@@ -101,7 +101,7 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
     }
     // Compute last quotient
     let first = limbs[0];
-    let n = u128::join(remainder, first << shift);
+    let n = DW::join(remainder, first << shift);
     let (q, remainder) = div_2x1(n, divisor, reciprocal);
     limbs[0] = q;
 
@@ -161,7 +161,7 @@ pub unsafe fn div_nx2(limbs: &mut [u64], divisor: u128) -> u128 {
     let limbs = UncheckedSlice::wrap_mut(limbs);
 
     // Normalize and compute reciprocal
-    let shift = divisor.high().leading_zeros();
+    let shift = DW::high(divisor).leading_zeros();
     if shift == 0 {
         return unsafe { div_nx2_normalized(limbs, divisor) };
     }
@@ -315,12 +315,12 @@ pub unsafe fn div_3x2_mg10(u21: u128, u0: u64, d: u128, v: u64) -> (u64, u128) {
     debug_assert!(u21 < d);
     debug_assert_eq!(v, unsafe { reciprocal_2(d) });
 
-    let q = u128::mul(u21.high(), v) + u21;
-    let r1 = u21.low().wrapping_sub(q.high().wrapping_mul(d.high()));
-    let t = u128::mul(d.low(), q.high());
-    let mut r = u128::join(r1, u0).wrapping_sub(t).wrapping_sub(d);
-    let mut q1 = q.high().wrapping_add(1);
-    if r.high() >= q.low() {
+    let q = DW::mul(DW::high(u21), v) + u21;
+    let r1 = DW::low(u21).wrapping_sub(DW::high(q).wrapping_mul(DW::high(d)));
+    let t = DW::mul(DW::low(d), DW::high(q));
+    let mut r = DW::join(r1, u0).wrapping_sub(t).wrapping_sub(d);
+    let mut q1 = DW::high(q).wrapping_add(1);
+    if DW::high(r) >= DW::low(q) {
         q1 = q1.wrapping_sub(1);
         r = r.wrapping_add(d);
     }
@@ -443,9 +443,9 @@ mod tests {
         proptest!(|(quotient in any_vec, (divisor, remainder) in divrem)| {
             // Construct problem
             let mut numerator = vec![0; quotient.len() + 2];
-            numerator[0] = remainder.low();
-            numerator[1] = remainder.high();
-            addmul(&mut numerator, &quotient, &[divisor.low(), divisor.high()]);
+            numerator[0] = DW::low(remainder);
+            numerator[1] = DW::high(remainder);
+            addmul(&mut numerator, &quotient, &[DW::low(divisor), DW::high(divisor)]);
 
             // Test
             let r = unsafe { div_nx2_normalized(&mut numerator, divisor) };
@@ -461,9 +461,9 @@ mod tests {
         proptest!(|(quotient in any_vec,(divisor, remainder) in divrem)| {
             // Construct problem
             let mut numerator = vec![0; quotient.len() + 2];
-            numerator[0] = remainder.low();
-            numerator[1] = remainder.high();
-            addmul(&mut numerator, &quotient, &[divisor.low(), divisor.high()]);
+            numerator[0] = DW::low(remainder);
+            numerator[1] = DW::high(remainder);
+            addmul(&mut numerator, &quotient, &[DW::low(divisor), DW::high(divisor)]);
 
             // Trim numerator
             while numerator.last() == Some(&0) {

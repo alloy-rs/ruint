@@ -6,7 +6,7 @@
 //! [new]: https://gmplib.org/list-archives/gmp-devel/2019-October/005590.html
 #![allow(dead_code, clippy::cast_possible_truncation, clippy::cast_lossless)]
 
-use crate::algorithms::DoubleWord;
+use crate::algorithms::DW;
 use core::num::Wrapping;
 
 pub use self::{
@@ -134,7 +134,7 @@ pub fn checked_reciprocal_mg10(d: u64) -> Option<u64> {
 #[must_use]
 pub unsafe fn reciprocal_2_mg10(d: u128) -> u64 {
     debug_assert!(d >= (1 << 127));
-    let (d_low, d_high) = d.split();
+    let (d_low, d_high) = DW::split(d);
 
     // SAFETY: High bit is set in d, so high bit will be set in d_high.
     let mut v = unsafe { reciprocal(d_high) };
@@ -147,12 +147,12 @@ pub unsafe fn reciprocal_2_mg10(d: u128) -> u64 {
         }
         p = p.wrapping_sub(d_high);
     }
-    let (t0, t1) = u128::mul(v, d_low).split();
+    let (t0, t1) = DW::split(DW::mul(v, d_low));
 
     let (p, overflow) = p.overflowing_add(t1);
     if overflow {
         v = v.wrapping_sub(1);
-        if u128::join(p, t0) >= d {
+        if DW::join(p, t0) >= d {
             v = v.wrapping_sub(1);
         }
     }
@@ -178,13 +178,13 @@ pub fn checked_reciprocal_2_mg10(d: u128) -> Option<u64> {
 #[inline(always)]
 #[must_use]
 fn mul_hi(a: Wrapping<u64>, b: Wrapping<u64>) -> Wrapping<u64> {
-    Wrapping(u128::mul(a.0, b.0).high())
+    Wrapping(DW::high(DW::mul(a.0, b.0)))
 }
 
 #[inline(always)]
 #[must_use]
 fn muladd_hi(a: Wrapping<u64>, b: Wrapping<u64>, c: Wrapping<u64>) -> Wrapping<u64> {
-    Wrapping(u128::muladd(a.0, b.0, c.0).high())
+    Wrapping(DW::high(DW::muladd(a.0, b.0, c.0)))
 }
 
 #[cfg(test)]

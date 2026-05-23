@@ -1,6 +1,6 @@
 #![allow(clippy::missing_inline_in_public_items)] // allow format functions
 
-use crate::{Uint, algorithms::DoubleWord, base_convert::BaseConvertError};
+use crate::{Uint, algorithms::DW, base_convert::BaseConvertError};
 use core::{fmt, str::FromStr};
 
 /// Error for [`from_str_radix`](Uint::from_str_radix).
@@ -213,7 +213,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     fn muladd_limbs(limbs: &mut [u64; LIMBS], factor: u64, addend: u64) -> Result<(), ParseError> {
         let mut carry = addend;
         for limb in limbs.iter_mut() {
-            (*limb, carry) = u128::muladd(*limb, factor, carry).split();
+            (*limb, carry) = DW::split(DW::muladd(*limb, factor, carry));
         }
         if carry > 0 || (LIMBS != 0 && limbs[LIMBS - 1] > Self::MASK) {
             return Err(BaseConvertError::Overflow.into());

@@ -1,6 +1,6 @@
 // TODO: https://baincapitalcrypto.com/optimizing-montgomery-multiplication-in-webassembly/
 
-use super::{DoubleWord, borrowing_sub, carrying_add, cmp};
+use super::{DW, borrowing_sub, carrying_add, cmp};
 use crate::utils::select_unpredictable;
 use core::{cmp::Ordering, iter::zip};
 
@@ -150,7 +150,7 @@ fn sub<const N: usize>(lhs: [u64; N], rhs: [u64; N]) -> ([u64; N], bool) {
 #[must_use]
 #[allow(clippy::cast_possible_truncation)]
 fn carrying_mul_add(lhs: u64, rhs: u64, add: u64, carry: u64) -> (u64, u64) {
-    u128::muladd2(lhs, rhs, add, carry).split()
+    DW::split(DW::muladd2(lhs, rhs, add, carry))
 }
 
 /// Compute `2 * lhs * rhs + add + carry_lo + 2^64 * carry_hi`.
