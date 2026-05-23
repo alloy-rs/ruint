@@ -21,7 +21,7 @@ use crate::algorithms::{DW, borrowing_sub};
 /// assert_eq!(result, [12]);
 /// ```
 #[inline(always)]
-pub fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
+pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
     // Trim zeros from `a`
     while let [0, rest @ ..] = a {
         a = rest;
@@ -54,10 +54,12 @@ pub fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
 
     // Iterate over limbs of `b` and add partial products to `lhs`.
     let mut overflow = false;
-    for &b in b {
+    let mut j = 0;
+    while j < b.len() {
+        let b_limb = b[j];
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
-            let carry = addmul_nx1(target, a, b);
+            let carry = addmul_nx1(target, a, b_limb);
             let carry = add_nx1(rest, carry);
             overflow |= carry != 0;
         } else {
@@ -65,9 +67,11 @@ pub fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
             if lhs.is_empty() {
                 break;
             }
-            addmul_nx1(lhs, &a[..lhs.len()], b);
+            let (a, _) = a.split_at(lhs.len());
+            addmul_nx1(lhs, a, b_limb);
         }
-        lhs = &mut lhs[1..];
+        (_, lhs) = lhs.split_at_mut(1);
+        j += 1;
     }
     overflow
 }
@@ -79,7 +83,7 @@ const ADDMUL_N_SMALL_LIMIT: usize = 8;
 #[doc = crate::algorithms::unstable_warning!()]
 /// See [`addmul`] for more details.
 #[inline(always)]
-pub fn addmul_n(lhs: &mut [u64], a: &[u64], b: &[u64]) {
+pub const fn addmul_n(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     let n = lhs.len();
     if n <= ADDMUL_N_SMALL_LIMIT && a.len() == n && b.len() == n {
         addmul_n_small(lhs, a, b);
@@ -89,39 +93,44 @@ pub fn addmul_n(lhs: &mut [u64], a: &[u64], b: &[u64]) {
 }
 
 #[inline(always)]
-fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
+const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     let n = lhs.len();
     assume!(n <= ADDMUL_N_SMALL_LIMIT);
     assume!(a.len() == n);
     assume!(b.len() == n);
 
-    for j in 0..n {
+    let mut j = 0;
+    while j < n {
         let mut carry = 0;
         // Widening multiply-accumulate for all but the last position.
-        let i = n - j - 1;
-        for i in 0..i {
+        let mut i = 0;
+        while i < n - j - 1 {
             (lhs[j + i], carry) = DW::split(DW::muladd2(a[i], b[j], carry, lhs[j + i]));
+            i += 1;
         }
         // Last position: the carry out is discarded (it would go beyond n
         // limbs), so use truncated arithmetic to reduce register pressure.
         lhs[j + i] = (a[i].wrapping_mul(b[j]))
             .wrapping_add(lhs[j + i])
             .wrapping_add(carry);
+        j += 1;
     }
 }
 
 /// ⚠️ Computes `lhs += a` and returns the carry.
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
-pub fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
+pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
     if a == 0 {
         return 0;
     }
-    for lhs in lhs {
-        (*lhs, a) = DW::split(DW::add(*lhs, a));
+    let mut i = 0;
+    while i < lhs.len() {
+        (lhs[i], a) = DW::split(DW::add(lhs[i], a));
         if a == 0 {
             return 0;
         }
+        i += 1;
     }
     a
 }
@@ -129,10 +138,12 @@ pub fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 /// ⚠️ Computes `lhs *= a` and returns the carry.
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
-pub fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
+pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
-    for lhs in lhs {
-        (*lhs, carry) = DW::split(DW::muladd(*lhs, a, carry));
+    let mut i = 0;
+    while i < lhs.len() {
+        (lhs[i], carry) = DW::split(DW::muladd(lhs[i], a, carry));
+        i += 1;
     }
     carry
 }
@@ -148,11 +159,13 @@ pub fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 /// }{2^{64⋅N}}} \end{aligned}
 /// $$
 #[inline(always)]
-pub fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
-    for i in 0..a.len() {
+    let mut i = 0;
+    while i < a.len() {
         (lhs[i], carry) = DW::split(DW::muladd2(a[i], b, carry, lhs[i]));
+        i += 1;
     }
     carry
 }
@@ -169,17 +182,19 @@ pub fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
 /// $$
 // OPT: `carry` and `borrow` can probably be merged into a single var.
 #[inline(always)]
-pub fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     let mut borrow = false;
-    for i in 0..a.len() {
+    let mut i = 0;
+    while i < a.len() {
         // Compute product limbs
         let limb;
         (limb, carry) = DW::split(DW::muladd(a[i], b, carry));
 
         // Subtract
         (lhs[i], borrow) = borrowing_sub(lhs[i], limb, borrow);
+        i += 1;
     }
     borrow as u64 + carry
 }

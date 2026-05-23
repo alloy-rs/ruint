@@ -9,7 +9,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Computes `self * rhs`, returning [`None`] if overflow occurred.
     #[inline(always)]
     #[must_use]
-    pub fn checked_mul(self, rhs: Self) -> Option<Self> {
+    pub const fn checked_mul(self, rhs: Self) -> Option<Self> {
         match self.overflowing_mul(rhs) {
             (value, false) => Some(value),
             _ => None,
@@ -36,7 +36,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
+    pub const fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         let mut result = Self::ZERO;
         let mut overflow = algorithms::addmul(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
         if Self::SHOULD_MASK {
@@ -50,7 +50,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// overflowing.
     #[inline(always)]
     #[must_use]
-    pub fn saturating_mul(self, rhs: Self) -> Self {
+    pub const fn saturating_mul(self, rhs: Self) -> Self {
         match self.overflowing_mul(rhs) {
             (value, false) => value,
             _ => Self::MAX,
@@ -60,7 +60,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Computes `self * rhs`, wrapping around at the boundary of the type.
     #[inline(always)]
     #[must_use]
-    pub fn wrapping_mul(self, rhs: Self) -> Self {
+    pub const fn wrapping_mul(self, rhs: Self) -> Self {
         let mut result = Self::ZERO;
         algorithms::addmul_n(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
         result.apply_mask();
@@ -126,7 +126,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     #[allow(clippy::similar_names)] // Don't confuse `res` and `rhs`.
-    pub fn widening_mul<
+    pub const fn widening_mul<
         const BITS_RHS: usize,
         const LIMBS_RHS: usize,
         const BITS_RES: usize,
@@ -135,8 +135,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         self,
         rhs: Uint<BITS_RHS, LIMBS_RHS>,
     ) -> Uint<BITS_RES, LIMBS_RES> {
-        assert_eq!(BITS_RES, BITS + BITS_RHS);
-        assert_eq!(LIMBS_RES, nlimbs(BITS_RES));
+        assert!(BITS_RES == BITS + BITS_RHS);
+        assert!(LIMBS_RES == nlimbs(BITS_RES));
         let mut result = Uint::<BITS_RES, LIMBS_RES>::ZERO;
         algorithms::addmul(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
         if LIMBS_RES > 0 {
@@ -180,6 +180,26 @@ mod tests {
     use super::*;
     use crate::const_for;
     use proptest::proptest;
+
+    #[test]
+    fn test_const_mul() {
+        type U64 = Uint<64, 1>;
+        type U128 = Uint<128, 2>;
+
+        const A: U64 = U64::from_limbs([u64::MAX]);
+        const B: U64 = U64::from_limbs([2]);
+        const WRAPPING: U64 = A.wrapping_mul(B);
+        const OVERFLOWING: (U64, bool) = A.overflowing_mul(B);
+        const CHECKED: Option<U64> = A.checked_mul(B);
+        const SATURATING: U64 = A.saturating_mul(B);
+        const WIDENING: U128 = A.widening_mul::<64, 1, 128, 2>(B);
+
+        assert_eq!(WRAPPING, U64::from_limbs([u64::MAX - 1]));
+        assert_eq!(OVERFLOWING, (WRAPPING, true));
+        assert_eq!(CHECKED, None);
+        assert_eq!(SATURATING, U64::MAX);
+        assert_eq!(WIDENING, U128::from_limbs([u64::MAX - 1, 1]));
+    }
 
     #[test]
     fn test_commutative() {

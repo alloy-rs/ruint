@@ -92,7 +92,7 @@ macro_rules! assume {
 macro_rules! debug_unreachable {
     ($($t:tt)*) => {
         if cfg!(debug_assertions) {
-            unreachable!($($t)*);
+            panic!($($t)*);
         } else {
             unsafe { core::hint::unreachable_unchecked() };
         }
