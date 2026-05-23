@@ -92,7 +92,7 @@ macro_rules! assume {
 macro_rules! debug_unreachable {
     ($($t:tt)*) => {
         if cfg!(debug_assertions) {
-            unreachable!($($t)*);
+            panic!($($t)*);
         } else {
             unsafe { core::hint::unreachable_unchecked() };
         }
@@ -100,31 +100,31 @@ macro_rules! debug_unreachable {
 }
 
 macro_rules! const_range_for {
-    ($i:ident in $start:tt.. $end:expr => $x:block) => {
-        const_range_for!(@range $i, $start, $end, $x)
+    ($p:pat in $start:tt.. $end:expr => $x:block) => {
+        const_range_for!(@range $p, $start, $end, $x)
     };
-    ($i:ident in ($start:expr).. $end:expr => $x:block) => {
-        const_range_for!(@range $i, $start, $end, $x)
+    ($p:pat in ($start:expr).. $end:expr => $x:block) => {
+        const_range_for!(@range $p, $start, $end, $x)
     };
-    (@range $i:ident, $start:expr, $end:expr, $x:block) => {{
+    (@range $p:pat, $start:expr, $end:expr, $x:block) => {{
         let mut iter = $start;
         while iter < $end {
-            let $i = iter;
+            let $p = iter;
             iter += 1;
             $x
         }
     }};
-    ($i:ident in ref $slice:expr => $x:block) => {{
+    ($p:pat in ref $slice:expr => $x:block) => {{
         let slice = $slice;
         const_range_for!(i in 0..slice.len() => {
-            let $i = &slice[i];
+            let $p = &slice[i];
             $x
         })
     }};
-    ($i:ident in mut $slice:expr => $x:block) => {{
+    ($p:pat in mut $slice:expr => $x:block) => {{
         let slice = &mut $slice;
         const_range_for!(i in 0..slice.len() => {
-            let $i = &mut slice[i];
+            let $p = &mut slice[i];
             $x
         })
     }};
