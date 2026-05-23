@@ -54,8 +54,7 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
 
     // Iterate over limbs of `b` and add partial products to `lhs`.
     let mut overflow = false;
-    let mut j = 0;
-    while j < b.len() {
+    crate::const_for!(j in 0..b.len() => {
         let b = b[j];
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
@@ -71,8 +70,7 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
             addmul_nx1(lhs, a, b);
         }
         (_, lhs) = lhs.split_at_mut(1);
-        j += 1;
-    }
+    });
     overflow
 }
 
@@ -99,22 +97,19 @@ const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     assume!(a.len() == n);
     assume!(b.len() == n);
 
-    let mut j = 0;
-    while j < n {
+    crate::const_for!(j in 0..n => {
         let mut carry = 0;
         // Widening multiply-accumulate for all but the last position.
-        let mut i = 0;
-        while i < n - j - 1 {
+        let end = n - j - 1;
+        crate::const_for!(i in 0..end => {
             (lhs[j + i], carry) = DW::split(DW::muladd2(a[i], b[j], carry, lhs[j + i]));
-            i += 1;
-        }
+        });
         // Last position: the carry out is discarded (it would go beyond n
         // limbs), so use truncated arithmetic to reduce register pressure.
-        lhs[j + i] = (a[i].wrapping_mul(b[j]))
-            .wrapping_add(lhs[j + i])
+        lhs[j + end] = (a[end].wrapping_mul(b[j]))
+            .wrapping_add(lhs[j + end])
             .wrapping_add(carry);
-        j += 1;
-    }
+    });
 }
 
 /// ⚠️ Computes `lhs += a` and returns the carry.
@@ -124,14 +119,12 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
     if a == 0 {
         return 0;
     }
-    let mut i = 0;
-    while i < lhs.len() {
+    crate::const_for!(i in 0..lhs.len() => {
         (lhs[i], a) = DW::split(DW::add(lhs[i], a));
         if a == 0 {
             return 0;
         }
-        i += 1;
-    }
+    });
     a
 }
 
@@ -140,11 +133,9 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 #[inline(always)]
 pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
-    let mut i = 0;
-    while i < lhs.len() {
+    crate::const_for!(i in 0..lhs.len() => {
         (lhs[i], carry) = DW::split(DW::muladd(lhs[i], a, carry));
-        i += 1;
-    }
+    });
     carry
 }
 
@@ -162,11 +153,9 @@ pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
-    let mut i = 0;
-    while i < a.len() {
+    crate::const_for!(i in 0..a.len() => {
         (lhs[i], carry) = DW::split(DW::muladd2(a[i], b, carry, lhs[i]));
-        i += 1;
-    }
+    });
     carry
 }
 
@@ -186,16 +175,14 @@ pub const fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     let mut borrow = false;
-    let mut i = 0;
-    while i < a.len() {
+    crate::const_for!(i in 0..a.len() => {
         // Compute product limbs
         let limb;
         (limb, carry) = DW::split(DW::muladd(a[i], b, carry));
 
         // Subtract
         (lhs[i], borrow) = borrowing_sub(lhs[i], limb, borrow);
-        i += 1;
-    }
+    });
     borrow as u64 + carry
 }
 
