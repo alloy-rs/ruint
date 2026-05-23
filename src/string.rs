@@ -275,20 +275,28 @@ mod tests {
         type U8 = Uint<8, 1>;
         type U16 = Uint<16, 1>;
 
-        const BIN: Result<U8, ParseError> = U8::from_str_radix("1111_1111", 2);
-        const DEC: Result<U16, ParseError> = U16::from_str_radix("65_535", 10);
-        const HEX: Result<U16, ParseError> = U16::from_str_radix("ffff", 16);
-        const BASE64: Result<U8, ParseError> = U8::from_str_radix("_", 64);
-        const OVERFLOW: Result<U8, ParseError> = U8::from_str_radix("256", 10);
-
-        assert_eq!(BIN, Ok(U8::from(255)));
-        assert_eq!(DEC, Ok(U16::from(65535)));
-        assert_eq!(HEX, Ok(U16::from(65535)));
-        assert_eq!(BASE64, Ok(U8::from(63)));
-        assert_eq!(
-            OVERFLOW,
-            Err(ParseError::BaseConvertError(BaseConvertError::Overflow))
-        );
+        const {
+            match U8::from_str_radix("1111_1111", 2) {
+                Ok(value) => assert!(value.as_limbs()[0] == 255),
+                Err(_) => panic!(),
+            }
+            match U16::from_str_radix("65_535", 10) {
+                Ok(value) => assert!(value.as_limbs()[0] == 65_535),
+                Err(_) => panic!(),
+            }
+            match U16::from_str_radix("ffff", 16) {
+                Ok(value) => assert!(value.as_limbs()[0] == 65_535),
+                Err(_) => panic!(),
+            }
+            match U8::from_str_radix("_", 64) {
+                Ok(value) => assert!(value.as_limbs()[0] == 63),
+                Err(_) => panic!(),
+            }
+            match U8::from_str_radix("256", 10) {
+                Err(ParseError::BaseConvertError(BaseConvertError::Overflow)) => {}
+                _ => panic!(),
+            }
+        }
     }
 
     #[test]
