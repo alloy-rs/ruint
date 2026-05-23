@@ -104,8 +104,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         #[cfg(target_endian = "big")]
         {
             let mut limbs = self.limbs;
-            const_range_for!(limb in mut limbs => {
-                *limb = limb.to_le();
+            const_range_for!(limbs in mut limbs => {
+                *limbs = (*limbs).to_le();
             });
             // SAFETY: BYTES <= LIMBS * 8
             unsafe { *limbs.as_ptr().cast() }
