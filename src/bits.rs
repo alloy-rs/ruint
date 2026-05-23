@@ -127,8 +127,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return Self::ZERO;
         }
-        const_range_for!(i in 0..LIMBS => {
-            self.limbs[i] = !self.limbs[i];
+        const_range_for!(limb in mut self.limbs => {
+            *limb = !*limb;
         });
         self.masked()
     }
