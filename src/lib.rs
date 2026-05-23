@@ -29,7 +29,7 @@ extern crate alloc;
 #[macro_use]
 mod macros;
 #[macro_use]
-mod const_for;
+mod const_range_for;
 
 mod add;
 pub mod algorithms;
@@ -39,6 +39,7 @@ mod bit_arr;
 mod bits;
 mod bytes;
 mod cmp;
+mod const_for;
 mod div;
 mod fmt;
 mod from;
