@@ -50,16 +50,16 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
         return true;
     }
 
-    let (a, b) = if b.len() > a.len() { (b, a) } else { (a, b) };
+    let (a, mut b) = if b.len() > a.len() { (b, a) } else { (a, b) };
 
     // Iterate over limbs of `b` and add partial products to `lhs`.
     let mut overflow = false;
-    let mut j = 0;
-    while j < b.len() {
-        let b = b[j];
+    while let [limb, rest @ ..] = b {
+        let limb = *limb;
+        b = rest;
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
-            let carry = addmul_nx1(target, a, b);
+            let carry = addmul_nx1(target, a, limb);
             let carry = add_nx1(rest, carry);
             overflow |= carry != 0;
         } else {
@@ -68,10 +68,9 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
                 break;
             }
             let (a, _) = a.split_at(lhs.len());
-            addmul_nx1(lhs, a, b);
+            addmul_nx1(lhs, a, limb);
         }
         (_, lhs) = lhs.split_at_mut(1);
-        j += 1;
     }
     overflow
 }
@@ -120,17 +119,16 @@ const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
 /// ⚠️ Computes `lhs += a` and returns the carry.
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
-pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
+pub const fn add_nx1(mut lhs: &mut [u64], mut a: u64) -> u64 {
     if a == 0 {
         return 0;
     }
-    let mut i = 0;
-    while i < lhs.len() {
-        (lhs[i], a) = DW::split(DW::add(lhs[i], a));
+    while let [limb, rest @ ..] = lhs {
+        (*limb, a) = DW::split(DW::add(*limb, a));
         if a == 0 {
             return 0;
         }
-        i += 1;
+        lhs = rest;
     }
     a
 }
@@ -138,12 +136,11 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 /// ⚠️ Computes `lhs *= a` and returns the carry.
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
-pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
+pub const fn mul_nx1(mut lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
-    let mut i = 0;
-    while i < lhs.len() {
-        (lhs[i], carry) = DW::split(DW::muladd(lhs[i], a, carry));
-        i += 1;
+    while let [limb, rest @ ..] = lhs {
+        (*limb, carry) = DW::split(DW::muladd(*limb, a, carry));
+        lhs = rest;
     }
     carry
 }
@@ -159,13 +156,13 @@ pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 /// }{2^{64⋅N}}} \end{aligned}
 /// $$
 #[inline(always)]
-pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const fn addmul_nx1(mut lhs: &mut [u64], mut a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
-    let mut i = 0;
-    while i < a.len() {
-        (lhs[i], carry) = DW::split(DW::muladd2(a[i], b, carry, lhs[i]));
-        i += 1;
+    while let ([limb, lhs_rest @ ..], [a_limb, a_rest @ ..]) = (lhs, a) {
+        (*limb, carry) = DW::split(DW::muladd2(*a_limb, b, carry, *limb));
+        lhs = lhs_rest;
+        a = a_rest;
     }
     carry
 }
@@ -182,19 +179,19 @@ pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
 /// $$
 // OPT: `carry` and `borrow` can probably be merged into a single var.
 #[inline(always)]
-pub const fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const fn submul_nx1(mut lhs: &mut [u64], mut a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     let mut borrow = false;
-    let mut i = 0;
-    while i < a.len() {
+    while let ([limb, lhs_rest @ ..], [a_limb, a_rest @ ..]) = (lhs, a) {
         // Compute product limbs
-        let limb;
-        (limb, carry) = DW::split(DW::muladd(a[i], b, carry));
+        let product;
+        (product, carry) = DW::split(DW::muladd(*a_limb, b, carry));
 
         // Subtract
-        (lhs[i], borrow) = borrowing_sub(lhs[i], limb, borrow);
-        i += 1;
+        (*limb, borrow) = borrowing_sub(*limb, product, borrow);
+        lhs = lhs_rest;
+        a = a_rest;
     }
     borrow as u64 + carry
 }
