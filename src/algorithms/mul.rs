@@ -54,7 +54,7 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
 
     // Iterate over limbs of `b` and add partial products to `lhs`.
     let mut overflow = false;
-    crate::const_for!(j in 0..b.len() => {
+    crate::const_range_for!(j in 0..b.len() => {
         let b = b[j];
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
@@ -97,11 +97,11 @@ const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     assume!(a.len() == n);
     assume!(b.len() == n);
 
-    crate::const_for!(j in 0..n => {
+    crate::const_range_for!(j in 0..n => {
         let mut carry = 0;
         // Widening multiply-accumulate for all but the last position.
         let end = n - j - 1;
-        crate::const_for!(i in 0..end => {
+        crate::const_range_for!(i in 0..end => {
             (lhs[j + i], carry) = DW::split(DW::muladd2(a[i], b[j], carry, lhs[j + i]));
         });
         // Last position: the carry out is discarded (it would go beyond n
@@ -119,7 +119,7 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
     if a == 0 {
         return 0;
     }
-    crate::const_for!(i in 0..lhs.len() => {
+    crate::const_range_for!(i in 0..lhs.len() => {
         (lhs[i], a) = DW::split(DW::add(lhs[i], a));
         if a == 0 {
             return 0;
@@ -133,7 +133,7 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 #[inline(always)]
 pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
-    crate::const_for!(i in 0..lhs.len() => {
+    crate::const_range_for!(i in 0..lhs.len() => {
         (lhs[i], carry) = DW::split(DW::muladd(lhs[i], a, carry));
     });
     carry
@@ -153,7 +153,7 @@ pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
-    crate::const_for!(i in 0..a.len() => {
+    crate::const_range_for!(i in 0..a.len() => {
         (lhs[i], carry) = DW::split(DW::muladd2(a[i], b, carry, lhs[i]));
     });
     carry
@@ -175,7 +175,7 @@ pub const fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     let mut borrow = false;
-    crate::const_for!(i in 0..a.len() => {
+    crate::const_range_for!(i in 0..a.len() => {
         // Compute product limbs
         let limb;
         (limb, carry) = DW::split(DW::muladd(a[i], b, carry));
