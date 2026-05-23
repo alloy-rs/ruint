@@ -1,4 +1,4 @@
-/// Compile time for loops with a `const` variable for testing.
+/// Compile-time and const-compatible for loops.
 ///
 /// Repeats a block of code with different values assigned to a constant.
 ///
@@ -42,6 +42,20 @@
 /// ```
 #[macro_export]
 macro_rules! const_for {
+    (@range $i:ident, $start:expr, $end:expr, $x:block) => {{
+        let mut iter = $start;
+        while iter < $end {
+            let $i = iter;
+            iter += 1;
+            $x
+        }
+    }};
+    ($i:ident in $start:tt.. $end:expr => $x:block) => {
+        $crate::const_for!(@range $i, $start, $end, $x)
+    };
+    ($i:ident in ($start:expr).. $end:expr => $x:block) => {
+        $crate::const_for!(@range $i, $start, $end, $x)
+    };
     ($C:ident in [$($n:expr),*] $x:block) => {
         $({
             const $C: usize = $n;
