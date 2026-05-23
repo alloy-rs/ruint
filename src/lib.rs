@@ -28,8 +28,6 @@ extern crate alloc;
 
 #[macro_use]
 mod macros;
-#[macro_use]
-mod const_range_for;
 
 mod add;
 pub mod algorithms;
