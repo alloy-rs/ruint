@@ -127,7 +127,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return Self::ZERO;
         }
-        crate::const_for!(i in 0..LIMBS => {
+        const_range_for!(i in 0..LIMBS => {
             self.limbs[i] = !self.limbs[i];
         });
         self.masked()
@@ -226,7 +226,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             },
         });
 
-        crate::const_for!(i in 0..LIMBS => {
+        const_range_for!(i in 0..LIMBS => {
             if self.limbs[i] != 0 {
                 return i * 64 + self.limbs[i].trailing_zeros() as usize;
             }
@@ -249,7 +249,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             },
         });
 
-        crate::const_for!(i in 0..LIMBS => {
+        const_range_for!(i in 0..LIMBS => {
             if self.limbs[i] != u64::MAX {
                 return i * 64 + self.limbs[i].trailing_ones() as usize;
             }
@@ -262,7 +262,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[must_use]
     pub const fn count_ones(&self) -> usize {
         let mut ones = 0;
-        crate::const_for!(limb in self.as_limbs() => {
+        const_range_for!(limb in self.as_limbs() => {
             ones += limb.count_ones() as usize;
         });
         ones
@@ -380,7 +380,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
-        crate::const_for!(i in 0..LIMBS - limbs => {
+        const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[i];
             r.limbs[i + limbs] = (x << bits) | carry;
             carry = x.unbounded_shr(64 - bits);
@@ -493,7 +493,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
-        crate::const_for!(i in 0..LIMBS - limbs => {
+        const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[LIMBS - 1 - i];
             r.limbs[LIMBS - 1 - i - limbs] = (x >> bits) | carry;
             carry = x.unbounded_shl(64 - bits);
@@ -700,7 +700,7 @@ macro_rules! impl_bit_op {
             #[inline(always)]
             #[must_use]
             pub const fn $fn(mut self, rhs: Uint<BITS, LIMBS>) -> Uint<BITS, LIMBS> {
-                crate::const_for!(i in 0..LIMBS => {
+                const_range_for!(i in 0..LIMBS => {
                     self.limbs[i] $assign_op rhs.limbs[i];
                 });
                 self
