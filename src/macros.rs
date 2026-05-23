@@ -109,8 +109,12 @@ macro_rules! const_range_for {
     (@range $p:pat, $start:expr, $end:expr, $x:block) => {{
         let mut iter = $start;
         while iter < $end {
+            // This mirrors `core::ops::IndexRange::next_unchecked` until const
+            // fns can use normal `for` loops again.
             let $p = iter;
-            iter += 1;
+            // SAFETY: The range was checked to be non-empty, so adding one
+            // cannot overflow.
+            iter = unsafe { iter.unchecked_add(1) };
             $x
         }
     }};
