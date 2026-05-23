@@ -104,11 +104,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         #[cfg(target_endian = "big")]
         {
             let mut limbs = self.limbs;
-            let mut i = 0;
-            while i < LIMBS {
+            crate::const_for!(i in 0..LIMBS => {
                 limbs[i] = limbs[i].to_le();
-                i += 1;
-            }
+            });
             // SAFETY: BYTES <= LIMBS * 8
             unsafe { *limbs.as_ptr().cast() }
         }
@@ -155,11 +153,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         // by LLVM and degrades to 32 individual byte loads/stores for U256.
         if BYTES == LIMBS * 8 {
             let mut limbs_be = [0u64; LIMBS];
-            let mut i = 0;
-            while i < LIMBS {
+            crate::const_for!(i in 0..LIMBS => {
                 limbs_be[i] = self.limbs[LIMBS - 1 - i].to_be();
-                i += 1;
-            }
+            });
             // SAFETY: BYTES == size_of::<[u64; LIMBS]>().
             return unsafe { *limbs_be.as_ptr().cast() };
         }
@@ -249,23 +245,19 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
             let end = bytes.as_ptr_range().end;
-            let mut i = 0;
-            while i < LIMBS {
+            crate::const_for!(i in 0..LIMBS => {
                 limbs[i] = u64::from_be_bytes(unsafe { *end.sub((i + 1) * 8).cast() });
-                i += 1;
-            }
+            });
             return Some(Self::from_limbs(limbs));
         }
 
         let mut limbs = [0; LIMBS];
-        let mut i = 0;
         let mut c = bytes.len();
-        while i < bytes.len() {
+        crate::const_for!(i in 0..bytes.len() => {
             c -= 1;
             let (limb, byte) = (i / 8, i % 8);
             limbs[limb] += (bytes[c] as u64) << (byte * 8);
-            i += 1;
-        }
+        });
         if LIMBS > 0 && limbs[LIMBS - 1] > Self::MASK {
             return None;
         }
@@ -326,21 +318,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if Self::BYTES % 8 == 0 && bytes.len() == Self::BYTES {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
-            let mut i = 0;
-            while i < LIMBS {
+            crate::const_for!(i in 0..LIMBS => {
                 limbs[i] = u64::from_le_bytes(unsafe { *bytes.as_ptr().add(i * 8).cast() });
-                i += 1;
-            }
+            });
             return Some(Self::from_limbs(limbs));
         }
 
         let mut limbs = [0; LIMBS];
-        let mut i = 0;
-        while i < bytes.len() {
+        crate::const_for!(i in 0..bytes.len() => {
             let (limb, byte) = (i / 8, i % 8);
             limbs[limb] += (bytes[i] as u64) << (byte * 8);
-            i += 1;
-        }
+        });
         if LIMBS > 0 && limbs[LIMBS - 1] > Self::MASK {
             return None;
         }
