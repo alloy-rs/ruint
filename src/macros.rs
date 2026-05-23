@@ -128,27 +128,6 @@ macro_rules! const_range_for {
             $x
         })
     }};
-    ($i:ident in & $slice:expr => $x:block) => {{
-        let slice = &$slice;
-        const_range_for!(i in 0..slice.len() => {
-            let $i = &slice[i];
-            $x
-        })
-    }};
-    ($i:ident in &mut $slice:expr => $x:block) => {{
-        let slice = &mut $slice;
-        const_range_for!(i in 0..slice.len() => {
-            let $i = &mut slice[i];
-            $x
-        })
-    }};
-    ($i:ident in $slice:expr => $x:block) => {{
-        let slice = $slice;
-        const_range_for!(i in 0..slice.len() => {
-            let $i = &slice[i];
-            $x
-        })
-    }};
 }
 
 /// `let $id = &mut [0u64; nlimbs(2 * BITS)][..]`
