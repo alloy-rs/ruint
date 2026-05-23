@@ -116,17 +116,38 @@ macro_rules! const_range_for {
     }};
     ($p:pat in ref $slice:expr => $x:block) => {{
         let slice = $slice;
-        const_range_for!(i in 0..slice.len() => {
-            let $p = &slice[i];
+        let range = slice.as_ptr_range();
+        let mut ptr = range.start;
+        let end = range.end;
+        while unsafe { end.offset_from(ptr) } != 0 {
+            let old = ptr;
+            ptr = unsafe { ptr.add(1) };
+            let $p = unsafe { &*old };
             $x
-        })
+        }
+    }};
+    ($p:pat in rev ref $slice:expr => $x:block) => {{
+        let slice = $slice;
+        let range = slice.as_ptr_range();
+        let start = range.start;
+        let mut ptr = range.end;
+        while unsafe { ptr.offset_from(start) } != 0 {
+            ptr = unsafe { ptr.sub(1) };
+            let $p = unsafe { &*ptr };
+            $x
+        }
     }};
     ($p:pat in mut $slice:expr => $x:block) => {{
         let slice = &mut $slice;
-        const_range_for!(i in 0..slice.len() => {
-            let $p = &mut slice[i];
+        let range = slice.as_mut_ptr_range();
+        let mut ptr = range.start;
+        let end = range.end;
+        while unsafe { end.offset_from(ptr) } != 0 {
+            let old = ptr;
+            ptr = unsafe { ptr.add(1) };
+            let $p = unsafe { &mut *old };
             $x
-        })
+        }
     }};
 }
 

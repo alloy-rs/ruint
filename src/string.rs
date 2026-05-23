@@ -115,10 +115,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[cold]
     const fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
         let mut result = Self::ZERO;
-        let mut bytes = src.as_bytes();
-        while let [b, rest @ ..] = bytes {
-            let b = *b;
-            bytes = rest;
+        let bytes = src.as_bytes();
+        const_range_for!(&b in ref bytes => {
             let digit = match b {
                 b'A'..=b'Z' => b - b'A',
                 b'a'..=b'f' => b - b'a' + 26,
@@ -138,7 +136,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 Ok(()) => {}
                 Err(e) => return Err(e),
             }
-        }
+        });
         Ok(result)
     }
 
@@ -149,9 +147,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits_per_digit = radix.trailing_zeros() as usize;
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
-        let mut bytes = src.as_bytes();
-        while let &[ref rest @ .., b] = bytes {
-            bytes = rest;
+        let bytes = src.as_bytes();
+        const_range_for!(&b in rev ref bytes => {
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -175,7 +172,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 }
             }
             total_bits += bits_per_digit;
-        }
+        });
         if LIMBS > 0 && result.limbs[LIMBS - 1] > Self::MASK {
             return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
@@ -191,9 +188,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let mut result = Self::ZERO;
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
-        let mut bytes = src.as_bytes();
-        while let &[b, ref rest @ ..] = bytes {
-            bytes = rest;
+        let bytes = src.as_bytes();
+        const_range_for!(&b in ref bytes => {
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -209,7 +205,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 chunk_val = 0;
                 chunk_digits = 0;
             }
-        }
+        });
         if chunk_digits > 0 {
             let mut tail_base = radix;
             const_range_for!(_i in 1..chunk_digits => {
