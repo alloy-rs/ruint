@@ -132,7 +132,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let a = self.as_limbs();
         let b = other.as_limbs();
         let mut equal_count = 0usize;
-        crate::const_range_for!(i in 0..LIMBS => {
+        crate::const_for!(i in 0..LIMBS => {
             equal_count += (a[i] == b[i]) as usize;
         });
         equal_count == LIMBS
