@@ -64,7 +64,7 @@ const fn radix_base(radix: u64) -> (u64, usize) {
 /// Decode an ASCII byte as a digit for radix <= 36.
 /// Case-insensitive 0-9, a-z. Underscores are skipped.
 #[inline(always)]
-fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
+const fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
     let digit = match b {
         b'0'..=b'9' => b - b'0',
         b'a'..=b'z' => b - b'a' + 10,
@@ -72,7 +72,7 @@ fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
         b'_' => return Ok(None),
         _ => return Err(ParseError::InvalidDigit(b as char)),
     };
-    let digit = u64::from(digit);
+    let digit = digit as u64;
     if digit < radix {
         Ok(Some(digit))
     } else {
@@ -96,7 +96,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     // FEATURE: Support proper unicode. Ignore zero-width spaces, joiners, etc.
     // Recognize digits from other alphabets.
     #[inline]
-    pub fn from_str_radix(src: &str, radix: u64) -> Result<Self, ParseError> {
+    pub const fn from_str_radix(src: &str, radix: u64) -> Result<Self, ParseError> {
         match radix {
             // Specialize for the common cases.
             2 => Self::from_str_radix_pow2(src, 2),
@@ -113,38 +113,51 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
     /// Fallback for radix > 36 (base-64 alphabet). Not perf-critical.
     #[cold]
-    fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
-        let mut err = None;
-        let digits = src.chars().filter_map(|c| {
-            if err.is_some() {
-                return None;
-            }
-            let digit = match c {
-                'A'..='Z' => u64::from(c) - u64::from('A'),
-                'a'..='f' => u64::from(c) - u64::from('a') + 26,
-                '0'..='9' => u64::from(c) - u64::from('0') + 52,
-                '+' | '-' => 62,
-                '/' | ',' | '_' => 63,
-                '=' | '\r' | '\n' => return None,
-                _ => {
-                    err = Some(ParseError::InvalidDigit(c));
-                    return None;
+    const fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
+        let mut result = Self::ZERO;
+        let bytes = src.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            let digit = match b {
+                b'A'..=b'Z' => b - b'A',
+                b'a'..=b'f' => b - b'a' + 26,
+                b'0'..=b'9' => b - b'0' + 52,
+                b'+' | b'-' => 62,
+                b'/' | b',' | b'_' => 63,
+                b'=' | b'\r' | b'\n' => {
+                    i += 1;
+                    continue;
                 }
+                _ => return Err(ParseError::InvalidDigit(b as char)),
             };
-            Some(digit)
-        });
-        let value = Self::from_base_be(radix, digits)?;
-        err.map_or(Ok(value), Err)
+            let digit = digit as u64;
+            if digit >= radix {
+                return Err(ParseError::BaseConvertError(
+                    BaseConvertError::InvalidDigit(digit, radix),
+                ));
+            }
+            match Self::muladd_limbs(&mut result.limbs, radix, digit) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            i += 1;
+        }
+        Ok(result)
     }
 
     /// Power-of-2 radix: shift digits directly into limbs, no multiplication.
     #[inline]
-    fn from_str_radix_pow2(src: &str, radix: u64) -> Result<Self, ParseError> {
+    const fn from_str_radix_pow2(src: &str, radix: u64) -> Result<Self, ParseError> {
         debug_assert!(radix.is_power_of_two());
         let bits_per_digit = radix.trailing_zeros() as usize;
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
-        for &b in src.as_bytes().iter().rev() {
+        let bytes = src.as_bytes();
+        let mut i = bytes.len();
+        while i > 0 {
+            i -= 1;
+            let b = bytes[i];
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -152,7 +165,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             };
             if total_bits >= BITS {
                 if digit != 0 {
-                    return Err(BaseConvertError::Overflow.into());
+                    return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
                 }
                 continue;
             }
@@ -164,13 +177,13 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 if limb_idx + 1 < LIMBS {
                     result.limbs[limb_idx + 1] |= hi;
                 } else if hi != 0 {
-                    return Err(BaseConvertError::Overflow.into());
+                    return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
                 }
             }
             total_bits += bits_per_digit;
         }
         if LIMBS > 0 && result.limbs[LIMBS - 1] > Self::MASK {
-            return Err(BaseConvertError::Overflow.into());
+            return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
         Ok(result)
     }
@@ -179,44 +192,65 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// one widening multiply per chunk instead of per digit.
     #[allow(clippy::cast_possible_truncation)]
     #[inline]
-    fn from_str_radix_chunked(src: &str, radix: u64) -> Result<Self, ParseError> {
+    const fn from_str_radix_chunked(src: &str, radix: u64) -> Result<Self, ParseError> {
         let (base, power) = radix_base(radix);
         let mut result = Self::ZERO;
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
-        for &b in src.as_bytes() {
+        let bytes = src.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
             let digit = match decode_digit(b, radix) {
-                Ok(None) => continue,
+                Ok(None) => {
+                    i += 1;
+                    continue;
+                }
                 Ok(Some(d)) => d,
                 Err(e) => return Err(e),
             };
             chunk_val = chunk_val * radix + digit;
             chunk_digits += 1;
             if chunk_digits == power {
-                Self::muladd_limbs(&mut result.limbs, base, chunk_val)?;
+                match Self::muladd_limbs(&mut result.limbs, base, chunk_val) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
                 chunk_val = 0;
                 chunk_digits = 0;
             }
+            i += 1;
         }
         if chunk_digits > 0 {
             let mut tail_base = radix;
-            for _ in 1..chunk_digits {
+            let mut i = 1;
+            while i < chunk_digits {
                 tail_base *= radix;
+                i += 1;
             }
-            Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val)?;
+            match Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
         }
         Ok(result)
     }
 
     /// `limbs = limbs * factor + addend`, returning overflow error.
     #[inline(always)]
-    fn muladd_limbs(limbs: &mut [u64; LIMBS], factor: u64, addend: u64) -> Result<(), ParseError> {
+    const fn muladd_limbs(
+        limbs: &mut [u64; LIMBS],
+        factor: u64,
+        addend: u64,
+    ) -> Result<(), ParseError> {
         let mut carry = addend;
-        for limb in limbs.iter_mut() {
-            (*limb, carry) = DW::split(DW::muladd(*limb, factor, carry));
+        let mut i = 0;
+        while i < LIMBS {
+            (limbs[i], carry) = DW::split(DW::muladd(limbs[i], factor, carry));
+            i += 1;
         }
         if carry > 0 || (LIMBS != 0 && limbs[LIMBS - 1] > Self::MASK) {
-            return Err(BaseConvertError::Overflow.into());
+            return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
         Ok(())
     }
@@ -244,6 +278,27 @@ impl<const BITS: usize, const LIMBS: usize> FromStr for Uint<BITS, LIMBS> {
 mod tests {
     use super::*;
     use proptest::{prop_assert_eq, proptest};
+
+    #[test]
+    fn test_const_from_str_radix() {
+        type U8 = Uint<8, 1>;
+        type U16 = Uint<16, 1>;
+
+        const BIN: Result<U8, ParseError> = U8::from_str_radix("1111_1111", 2);
+        const DEC: Result<U16, ParseError> = U16::from_str_radix("65_535", 10);
+        const HEX: Result<U16, ParseError> = U16::from_str_radix("ffff", 16);
+        const BASE64: Result<U8, ParseError> = U8::from_str_radix("_", 64);
+        const OVERFLOW: Result<U8, ParseError> = U8::from_str_radix("256", 10);
+
+        assert_eq!(BIN, Ok(U8::from(255)));
+        assert_eq!(DEC, Ok(U16::from(65535)));
+        assert_eq!(HEX, Ok(U16::from(65535)));
+        assert_eq!(BASE64, Ok(U8::from(63)));
+        assert_eq!(
+            OVERFLOW,
+            Err(ParseError::BaseConvertError(BaseConvertError::Overflow))
+        );
+    }
 
     #[test]
     fn test_pow2_overflow() {
