@@ -214,11 +214,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
         if chunk_digits > 0 {
             let mut tail_base = radix;
-            let mut i = 1;
-            while i < chunk_digits {
+            crate::const_for!(i in 1..chunk_digits => {
                 tail_base *= radix;
-                i += 1;
-            }
+            });
             match Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val) {
                 Ok(()) => {}
                 Err(e) => return Err(e),
@@ -235,11 +233,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         addend: u64,
     ) -> Result<(), ParseError> {
         let mut carry = addend;
-        let mut i = 0;
-        while i < LIMBS {
+        crate::const_for!(i in 0..LIMBS => {
             (limbs[i], carry) = DW::split(DW::muladd(limbs[i], factor, carry));
-            i += 1;
-        }
+        });
         if carry > 0 || (LIMBS != 0 && limbs[LIMBS - 1] > Self::MASK) {
             return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
