@@ -54,8 +54,7 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
 
     // Iterate over limbs of `b` and add partial products to `lhs`.
     let mut overflow = false;
-    const_range_for!(b in ref b => {
-        let b = *b;
+    const_range_for!(&b in ref b => {
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
             let carry = addmul_nx1(target, a, b);
@@ -119,8 +118,8 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
     if a == 0 {
         return 0;
     }
-    const_range_for!(limb in mut *lhs => {
-        (*limb, a) = DW::split(DW::add(*limb, a));
+    const_range_for!(lhs in mut *lhs => {
+        (*lhs, a) = DW::split(DW::add(*lhs, a));
         if a == 0 {
             return 0;
         }
@@ -133,8 +132,8 @@ pub const fn add_nx1(lhs: &mut [u64], mut a: u64) -> u64 {
 #[inline(always)]
 pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
     let mut carry = 0;
-    const_range_for!(limb in mut *lhs => {
-        (*limb, carry) = DW::split(DW::muladd(*limb, a, carry));
+    const_range_for!(lhs in mut *lhs => {
+        (*lhs, carry) = DW::split(DW::muladd(*lhs, a, carry));
     });
     carry
 }
