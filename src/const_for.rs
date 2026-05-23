@@ -71,13 +71,6 @@ macro_rules! const_for {
             $x
         }
     }};
-    ($i:ident in $slice:expr => $x:block) => {{
-        let slice = $slice;
-        $crate::const_for!(i in 0..slice.len() => {
-            let $i = &slice[i];
-            $x
-        })
-    }};
     ($C:ident in [$($n:expr),*] $x:block) => {
         $({
             const $C: usize = $n;
@@ -99,4 +92,11 @@ macro_rules! const_for {
             if $($t)*
         });
     };
+    ($i:ident in $slice:expr => $x:block) => {{
+        let slice = $slice;
+        $crate::const_for!(i in 0..slice.len() => {
+            let $i = &slice[i];
+            $x
+        })
+    }};
 }
