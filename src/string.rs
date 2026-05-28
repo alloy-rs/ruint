@@ -64,7 +64,7 @@ const fn radix_base(radix: u64) -> (u64, usize) {
 /// Decode an ASCII byte as a digit for radix <= 36.
 /// Case-insensitive 0-9, a-z. Underscores are skipped.
 #[inline(always)]
-fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
+const fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
     let digit = match b {
         b'0'..=b'9' => b - b'0',
         b'a'..=b'z' => b - b'a' + 10,
@@ -72,7 +72,7 @@ fn decode_digit(b: u8, radix: u64) -> Result<Option<u64>, ParseError> {
         b'_' => return Ok(None),
         _ => return Err(ParseError::InvalidDigit(b as char)),
     };
-    let digit = u64::from(digit);
+    let digit = digit as u64;
     if digit < radix {
         Ok(Some(digit))
     } else {
@@ -96,7 +96,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     // FEATURE: Support proper unicode. Ignore zero-width spaces, joiners, etc.
     // Recognize digits from other alphabets.
     #[inline]
-    pub fn from_str_radix(src: &str, radix: u64) -> Result<Self, ParseError> {
+    pub const fn from_str_radix(src: &str, radix: u64) -> Result<Self, ParseError> {
         match radix {
             // Specialize for the common cases.
             2 => Self::from_str_radix_pow2(src, 2),
@@ -113,38 +113,42 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
     /// Fallback for radix > 36 (base-64 alphabet). Not perf-critical.
     #[cold]
-    fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
-        let mut err = None;
-        let digits = src.chars().filter_map(|c| {
-            if err.is_some() {
-                return None;
-            }
-            let digit = match c {
-                'A'..='Z' => u64::from(c) - u64::from('A'),
-                'a'..='f' => u64::from(c) - u64::from('a') + 26,
-                '0'..='9' => u64::from(c) - u64::from('0') + 52,
-                '+' | '-' => 62,
-                '/' | ',' | '_' => 63,
-                '=' | '\r' | '\n' => return None,
-                _ => {
-                    err = Some(ParseError::InvalidDigit(c));
-                    return None;
-                }
+    const fn from_str_radix_slow(src: &str, radix: u64) -> Result<Self, ParseError> {
+        let mut result = Self::ZERO;
+        let bytes = src.as_bytes();
+        const_range_for!(&b in ref bytes => {
+            let digit = match b {
+                b'A'..=b'Z' => b - b'A',
+                b'a'..=b'f' => b - b'a' + 26,
+                b'0'..=b'9' => b - b'0' + 52,
+                b'+' | b'-' => 62,
+                b'/' | b',' | b'_' => 63,
+                b'=' | b'\r' | b'\n' => continue,
+                _ => return Err(ParseError::InvalidDigit(b as char)),
             };
-            Some(digit)
+            let digit = digit as u64;
+            if digit >= radix {
+                return Err(ParseError::BaseConvertError(
+                    BaseConvertError::InvalidDigit(digit, radix),
+                ));
+            }
+            match Self::muladd_limbs(&mut result.limbs, radix, digit) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
         });
-        let value = Self::from_base_be(radix, digits)?;
-        err.map_or(Ok(value), Err)
+        Ok(result)
     }
 
     /// Power-of-2 radix: shift digits directly into limbs, no multiplication.
     #[inline]
-    fn from_str_radix_pow2(src: &str, radix: u64) -> Result<Self, ParseError> {
+    const fn from_str_radix_pow2(src: &str, radix: u64) -> Result<Self, ParseError> {
         debug_assert!(radix.is_power_of_two());
         let bits_per_digit = radix.trailing_zeros() as usize;
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
-        for &b in src.as_bytes().iter().rev() {
+        let bytes = src.as_bytes();
+        const_range_for!(&b in rev ref bytes => {
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -152,7 +156,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             };
             if total_bits >= BITS {
                 if digit != 0 {
-                    return Err(BaseConvertError::Overflow.into());
+                    return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
                 }
                 continue;
             }
@@ -164,13 +168,13 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 if limb_idx + 1 < LIMBS {
                     result.limbs[limb_idx + 1] |= hi;
                 } else if hi != 0 {
-                    return Err(BaseConvertError::Overflow.into());
+                    return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
                 }
             }
             total_bits += bits_per_digit;
-        }
+        });
         if LIMBS > 0 && result.limbs[LIMBS - 1] > Self::MASK {
-            return Err(BaseConvertError::Overflow.into());
+            return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
         Ok(result)
     }
@@ -179,12 +183,13 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// one widening multiply per chunk instead of per digit.
     #[allow(clippy::cast_possible_truncation)]
     #[inline]
-    fn from_str_radix_chunked(src: &str, radix: u64) -> Result<Self, ParseError> {
+    const fn from_str_radix_chunked(src: &str, radix: u64) -> Result<Self, ParseError> {
         let (base, power) = radix_base(radix);
         let mut result = Self::ZERO;
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
-        for &b in src.as_bytes() {
+        let bytes = src.as_bytes();
+        const_range_for!(&b in ref bytes => {
             let digit = match decode_digit(b, radix) {
                 Ok(None) => continue,
                 Ok(Some(d)) => d,
@@ -193,30 +198,40 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             chunk_val = chunk_val * radix + digit;
             chunk_digits += 1;
             if chunk_digits == power {
-                Self::muladd_limbs(&mut result.limbs, base, chunk_val)?;
+                match Self::muladd_limbs(&mut result.limbs, base, chunk_val) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
                 chunk_val = 0;
                 chunk_digits = 0;
             }
-        }
+        });
         if chunk_digits > 0 {
             let mut tail_base = radix;
-            for _ in 1..chunk_digits {
+            const_range_for!(_i in 1..chunk_digits => {
                 tail_base *= radix;
+            });
+            match Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
             }
-            Self::muladd_limbs(&mut result.limbs, tail_base, chunk_val)?;
         }
         Ok(result)
     }
 
     /// `limbs = limbs * factor + addend`, returning overflow error.
     #[inline(always)]
-    fn muladd_limbs(limbs: &mut [u64; LIMBS], factor: u64, addend: u64) -> Result<(), ParseError> {
+    const fn muladd_limbs(
+        limbs: &mut [u64; LIMBS],
+        factor: u64,
+        addend: u64,
+    ) -> Result<(), ParseError> {
         let mut carry = addend;
-        for limb in limbs.iter_mut() {
-            (*limb, carry) = DW::split(DW::muladd(*limb, factor, carry));
-        }
+        const_range_for!(limbs in mut *limbs => {
+            (*limbs, carry) = DW::split(DW::muladd(*limbs, factor, carry));
+        });
         if carry > 0 || (LIMBS != 0 && limbs[LIMBS - 1] > Self::MASK) {
-            return Err(BaseConvertError::Overflow.into());
+            return Err(ParseError::BaseConvertError(BaseConvertError::Overflow));
         }
         Ok(())
     }
@@ -244,6 +259,66 @@ impl<const BITS: usize, const LIMBS: usize> FromStr for Uint<BITS, LIMBS> {
 mod tests {
     use super::*;
     use proptest::{prop_assert_eq, proptest};
+
+    #[test]
+    fn test_const_from_str_radix() {
+        type U8 = Uint<8, 1>;
+        type U16 = Uint<16, 1>;
+
+        const {
+            match U8::from_str_radix("1111_1111", 2) {
+                Ok(value) => assert!(value.as_limbs()[0] == 255),
+                Err(_) => panic!(),
+            }
+            match U16::from_str_radix("65_535", 10) {
+                Ok(value) => assert!(value.as_limbs()[0] == 65_535),
+                Err(_) => panic!(),
+            }
+            match U16::from_str_radix("ffff", 16) {
+                Ok(value) => assert!(value.as_limbs()[0] == 65_535),
+                Err(_) => panic!(),
+            }
+            match U8::from_str_radix("_", 64) {
+                Ok(value) => assert!(value.as_limbs()[0] == 63),
+                Err(_) => panic!(),
+            }
+            match U8::from_str_radix("256", 10) {
+                Err(ParseError::BaseConvertError(BaseConvertError::Overflow)) => {}
+                _ => panic!(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_from_str_radix_slow() {
+        type U8 = Uint<8, 1>;
+
+        assert_eq!(U8::from_str_radix("Z", 64), Ok(U8::from(25)));
+        assert_eq!(U8::from_str_radix("a", 64), Ok(U8::from(26)));
+        assert_eq!(U8::from_str_radix("f", 64), Ok(U8::from(31)));
+        assert_eq!(U8::from_str_radix("0", 64), Ok(U8::from(52)));
+        assert_eq!(U8::from_str_radix("9", 64), Ok(U8::from(61)));
+        assert_eq!(U8::from_str_radix("+", 64), Ok(U8::from(62)));
+        assert_eq!(U8::from_str_radix("-", 64), Ok(U8::from(62)));
+        assert_eq!(U8::from_str_radix("/", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix(",", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix("_", 64), Ok(U8::from(63)));
+        assert_eq!(U8::from_str_radix("=\r\n_", 64), Ok(U8::from(63)));
+        assert_eq!(
+            U8::from_str_radix("?", 64),
+            Err(ParseError::InvalidDigit('?'))
+        );
+        assert_eq!(
+            U8::from_str_radix("_", 37),
+            Err(ParseError::BaseConvertError(
+                BaseConvertError::InvalidDigit(63, 37)
+            ))
+        );
+        assert_eq!(
+            U8::from_str_radix("__", 64),
+            Err(ParseError::BaseConvertError(BaseConvertError::Overflow))
+        );
+    }
 
     #[test]
     fn test_pow2_overflow() {
