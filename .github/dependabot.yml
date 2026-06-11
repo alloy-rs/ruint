@@ -1,10 +1,24 @@
 version: 2
 updates:
-  - package-ecosystem: "cargo"
-    directory: "/"
+  - package-ecosystem: cargo
+    directory: /
     schedule:
-      interval: "weekly"
-  - package-ecosystem: "github-actions"
-    directory: "/"
+      interval: weekly
+      day: monday
+      time: 09:00
+      timezone: UTC
+    groups:
+      cargo-weekly:
+        patterns:
+          - '*'
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
+      day: monday
+      time: 09:00
+      timezone: UTC
+    groups:
+      ci-weekly:
+        patterns:
+          - '*'
