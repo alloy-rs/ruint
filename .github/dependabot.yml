@@ -1,48 +1,5 @@
 version: 2
 updates:
-  - package-ecosystem: cargo
-    directory: /
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: UTC
-    ignore:
-      - dependency-name: alloy-rlp
-      - dependency-name: arbitrary
-      - dependency-name: ark-ff
-      - dependency-name: bigdecimal
-      - dependency-name: bincode
-      - dependency-name: bn-rs
-      - dependency-name: borsh
-      - dependency-name: bytemuck
-      - dependency-name: bytes
-      - dependency-name: der
-      - dependency-name: diesel
-      - dependency-name: ethereum_ssz
-      - dependency-name: fastrlp
-      - dependency-name: num-bigint
-      - dependency-name: num-integer
-      - dependency-name: num-traits
-      - dependency-name: parity-scale-codec
-      - dependency-name: postgres-types
-      - dependency-name: primitive-types
-      - dependency-name: proptest
-      - dependency-name: pyo3
-      - dependency-name: quickcheck
-      - dependency-name: rand
-      - dependency-name: rkyv
-      - dependency-name: rlp
-      - dependency-name: serde_core
-      - dependency-name: sqlx-core
-      - dependency-name: subtle
-      - dependency-name: thiserror
-      - dependency-name: valuable
-      - dependency-name: zeroize
-    groups:
-      cargo-weekly:
-        patterns:
-          - '*'
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -53,4 +10,4 @@ updates:
     groups:
       ci-weekly:
         patterns:
-          - '*'
+          - "*"
