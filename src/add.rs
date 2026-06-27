@@ -31,6 +31,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
     }
 
+    /// Computes `self + rhs`, panicking if overflow occurred.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_add(self, rhs: Self) -> Self {
+        match self.overflowing_add(rhs) {
+            (value, false) => value,
+            _ => panic!("attempt to add with overflow"),
+        }
+    }
+
     /// Computes `-self`, returning [`None`] unless `self == 0`.
     #[inline(always)]
     #[must_use]
@@ -41,6 +57,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
     }
 
+    /// Computes `-self`, panicking unless `self == 0`.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_neg(self) -> Self {
+        match self.overflowing_neg() {
+            (value, false) => value,
+            _ => panic!("attempt to negate with overflow"),
+        }
+    }
+
     /// Computes `self - rhs`, returning [`None`] if overflow occurred.
     #[inline(always)]
     #[must_use]
@@ -48,6 +80,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         match self.overflowing_sub(rhs) {
             (value, false) => Some(value),
             _ => None,
+        }
+    }
+
+    /// Computes `self - rhs`, panicking if overflow occurred.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_sub(self, rhs: Self) -> Self {
+        match self.overflowing_sub(rhs) {
+            (value, false) => value,
+            _ => panic!("attempt to subtract with overflow"),
         }
     }
 
@@ -247,5 +295,31 @@ mod tests {
                 assert_eq!(-(-a), a);
             });
         });
+    }
+
+    #[test]
+    fn test_strict_add_sub_neg_ok() {
+        use crate::aliases::U64;
+        assert_eq!(U64::from(1u64).strict_add(U64::from(2u64)), U64::from(3u64));
+        assert_eq!(U64::from(3u64).strict_sub(U64::from(1u64)), U64::from(2u64));
+        assert_eq!(U64::ZERO.strict_neg(), U64::ZERO);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to add with overflow")]
+    fn test_strict_add_overflow() {
+        let _ = crate::aliases::U64::MAX.strict_add(crate::aliases::U64::from(1u64));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn test_strict_sub_overflow() {
+        let _ = crate::aliases::U64::ZERO.strict_sub(crate::aliases::U64::from(1u64));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to negate with overflow")]
+    fn test_strict_neg_overflow() {
+        let _ = crate::aliases::U64::from(1u64).strict_neg();
     }
 }
