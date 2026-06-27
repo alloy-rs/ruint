@@ -13,6 +13,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         Some(self.div(rhs))
     }
 
+    /// Computes `self / rhs`.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `rhs == 0`.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    #[allow(clippy::missing_const_for_fn)] // False positive
+    pub fn strict_div(self, rhs: Self) -> Self {
+        match self.checked_div(rhs) {
+            Some(value) => value,
+            None => panic!("attempt to divide by zero"),
+        }
+    }
+
     /// Computes `self % rhs`, returning [`None`] if `rhs == 0`.
     #[inline]
     #[must_use]
@@ -22,6 +38,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return None;
         }
         Some(self.rem(rhs))
+    }
+
+    /// Computes `self % rhs`.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `rhs == 0`.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    #[allow(clippy::missing_const_for_fn)] // False positive
+    pub fn strict_rem(self, rhs: Self) -> Self {
+        match self.checked_rem(rhs) {
+            Some(value) => value,
+            None => panic!("attempt to calculate the remainder with a divisor of zero"),
+        }
     }
 
     /// Computes `self / rhs` rounding up.
@@ -145,5 +177,24 @@ mod tests {
                 assert_eq!(q * d + r, n);
             });
         });
+    }
+
+    #[test]
+    fn test_strict_div_rem_ok() {
+        use crate::aliases::U64;
+        assert_eq!(U64::from(7u64).strict_div(U64::from(2u64)), U64::from(3u64));
+        assert_eq!(U64::from(7u64).strict_rem(U64::from(2u64)), U64::from(1u64));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to divide by zero")]
+    fn test_strict_div_by_zero() {
+        let _ = crate::aliases::U64::from(1u64).strict_div(crate::aliases::U64::ZERO);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to calculate the remainder with a divisor of zero")]
+    fn test_strict_rem_by_zero() {
+        let _ = crate::aliases::U64::from(1u64).strict_rem(crate::aliases::U64::ZERO);
     }
 }
