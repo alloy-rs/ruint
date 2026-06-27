@@ -347,6 +347,26 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
     }
 
+    /// Left shift by `rhs` bits, panicking if the bits shifted out are
+    /// non-zero.
+    ///
+    /// Note: This differs from [`u64::strict_shl`] which panics if the shift is
+    /// larger than `BITS`.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_shl(self, rhs: usize) -> Self {
+        match self.overflowing_shl(rhs) {
+            (value, false) => value,
+            _ => panic!("attempt to shift left with overflow"),
+        }
+    }
+
     /// Saturating left shift by `rhs` bits.
     ///
     /// Returns $\mathtt{self} ⋅ 2^{\mathtt{rhs}}$ or [`Uint::MAX`] if the
@@ -467,6 +487,26 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         match self.overflowing_shr(rhs) {
             (value, false) => Some(value),
             _ => None,
+        }
+    }
+
+    /// Right shift by `rhs` bits, panicking if the bits shifted out are
+    /// non-zero.
+    ///
+    /// Note: This differs from [`u64::strict_shr`] which panics if the shift is
+    /// larger than `BITS`.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_shr(self, rhs: usize) -> Self {
+        match self.overflowing_shr(rhs) {
+            (value, false) => value,
+            _ => panic!("attempt to shift right with overflow"),
         }
     }
 
@@ -1237,5 +1277,24 @@ mod tests {
                 true
             )
         );
+    }
+
+    #[test]
+    fn test_strict_shl_shr_ok() {
+        use crate::aliases::U64;
+        assert_eq!(U64::from(1u64).strict_shl(3), U64::from(8u64));
+        assert_eq!(U64::from(8u64).strict_shr(3), U64::from(1u64));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to shift left with overflow")]
+    fn test_strict_shl_overflow() {
+        let _ = crate::aliases::U64::MAX.strict_shl(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to shift right with overflow")]
+    fn test_strict_shr_overflow() {
+        let _ = crate::aliases::U64::from(1u64).strict_shr(1);
     }
 }

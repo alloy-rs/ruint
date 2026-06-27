@@ -16,6 +16,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
     }
 
+    /// Computes `self * rhs`, panicking if overflow occurred.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline(always)]
+    #[must_use]
+    #[track_caller]
+    pub const fn strict_mul(self, rhs: Self) -> Self {
+        match self.overflowing_mul(rhs) {
+            (value, false) => value,
+            _ => panic!("attempt to multiply with overflow"),
+        }
+    }
+
     /// Calculates the multiplication of self and rhs.
     ///
     /// Returns a tuple of the multiplication along with a boolean indicating
@@ -286,5 +302,20 @@ mod tests {
                 });
             });
         });
+    }
+
+    #[test]
+    fn test_strict_mul_ok() {
+        use crate::aliases::U64;
+        assert_eq!(
+            U64::from(3u64).strict_mul(U64::from(4u64)),
+            U64::from(12u64)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to multiply with overflow")]
+    fn test_strict_mul_overflow() {
+        let _ = crate::aliases::U64::MAX.strict_mul(crate::aliases::U64::from(2u64));
     }
 }

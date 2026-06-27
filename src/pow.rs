@@ -13,6 +13,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
     }
 
+    /// Raises self to the power of `exp`, panicking if overflow occurred.
+    ///
+    /// # Panics
+    ///
+    /// This function will always panic on overflow, regardless of whether
+    /// overflow checks are enabled.
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    pub fn strict_pow(self, exp: Self) -> Self {
+        match self.overflowing_pow(exp) {
+            (x, false) => x,
+            (_, true) => panic!("attempt to multiply with overflow"),
+        }
+    }
+
     /// Raises self to the power of `exp` and if the result would overflow.
     ///
     /// # Examples
@@ -206,5 +222,20 @@ mod tests {
                 assert_eq!(b.pow(U::from(e)), prod);
             });
         });
+    }
+
+    #[test]
+    fn test_strict_pow_ok() {
+        use crate::aliases::U64;
+        assert_eq!(
+            U64::from(2u64).strict_pow(U64::from(10u64)),
+            U64::from(1024u64)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to multiply with overflow")]
+    fn test_strict_pow_overflow() {
+        let _ = crate::aliases::U64::MAX.strict_pow(crate::aliases::U64::from(2u64));
     }
 }
