@@ -10,7 +10,7 @@ import json
 import sys
 
 # pip3 install PyGithub numpy
-from github import Github
+from github import Auth, Github
 import numpy as np
 
 # Only actually change things on master
@@ -25,7 +25,7 @@ with os.popen('git rev-parse HEAD') as process:
 print('Commit hash:', commit_hash)
 
 # Connect to the GitHub repo
-gh = Github(os.environ['GITHUB_TOKEN'])
+gh = Github(auth=Auth.Token(os.environ['GITHUB_TOKEN']))
 repo = gh.get_repo(os.environ['REPO_NAME'])
 print('Connected to', repo)
 
@@ -49,6 +49,13 @@ repo_labels = {l.name: l for l in repo.get_labels()}
 
 # Translate users ot PyGitHub `User`s
 users = {k: gh.get_user(v) for k, v in users.items()}
+
+
+def get_github_user(issue):
+    author_mail = issue['author-mail']
+    if author_mail not in users:
+        users[author_mail] = repo.get_commit(issue['commit-hash']).author
+    return users[author_mail]
 
 # Collect existing tracker issues
 open_issues = []
@@ -187,15 +194,16 @@ def render(issue):
     issue = issue.copy()
     issue.pop('open-issue-index', None)
     issue['json'] = json.dumps(issue)
-    issue['github-handle'] = users[issue['author-mail']].login
+    github_user = get_github_user(issue)
+    issue['github-author'] = '@' + github_user.login if github_user else issue['author']
     issue['author-time-pretty'] = date.fromtimestamp(
         issue['author-time']).isoformat()
     issue['commit-hash-short'] = issue['commit-hash'][0:7]
     issue['line-one'] = issue['line'] + 1
-    return dict(
+    result = dict(
         title='{head}'.format(**issue),
         body='''
-*On {author-time-pretty} @{github-handle} wrote in [`{commit-hash-short}`](https://github.com/{repo}/commit/{commit-hash}) “{summary}”:*
+*On {author-time-pretty} {github-author} wrote in [`{commit-hash-short}`](https://github.com/{repo}/commit/{commit-hash}) “{summary}”:*
 
 {issue}
 
@@ -206,9 +214,11 @@ def render(issue):
 
 <!--{json}-->
 '''.strip().format(**issue),
-        assignee=users[issue['author-mail']],
         labels=labels[issue['kind']] + (['blocked'] if 'blocked' in issue else []),
     )
+    if github_user:
+        result['assignee'] = github_user
+    return result
 
 
 def create_issue(source_issue):
