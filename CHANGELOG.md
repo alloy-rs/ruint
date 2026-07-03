@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-07-03
+
+### Added
+
+- `strict_*` arithmetic operations ([#595])
+- `ark-ff-06` feature flag for conversion to `ark-ff@0.6` types ([#584])
+
+### Changed
+
+- Made `from_str_radix` `const` ([#591])
+- Made multiplication functions `const` ([#590])
+- Optimize `Ord::cmp` by comparing via subtraction ([#579])
+- Optimize bit count helpers (leading/trailing zeros, count ones) ([#578])
+- Optimize shift implementations ([#574])
+
+### Fixed
+
 - Fix `to_be_bytes` on big-endian platforms ([#576])
+
+[#595]: https://github.com/alloy-rs/ruint/pull/595
+[#591]: https://github.com/alloy-rs/ruint/pull/591
+[#590]: https://github.com/alloy-rs/ruint/pull/590
+[#584]: https://github.com/alloy-rs/ruint/pull/584
+[#579]: https://github.com/alloy-rs/ruint/pull/579
+[#578]: https://github.com/alloy-rs/ruint/pull/578
+[#576]: https://github.com/alloy-rs/ruint/pull/576
+[#574]: https://github.com/alloy-rs/ruint/pull/574
 
 ## [1.18.0] - 2026-04-22
 
