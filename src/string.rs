@@ -305,10 +305,7 @@ mod tests {
         assert!(U8::from_str_radix("...", 1).is_err());
         // Radix 1 is a power of two, so this exercises `from_str_radix_pow2`
         // directly rather than tripping over an invalid digit first.
-        assert_eq!(
-            U8::from_str_radix("0", 1),
-            Err(ParseError::InvalidRadix(1))
-        );
+        assert_eq!(U8::from_str_radix("0", 1), Err(ParseError::InvalidRadix(1)));
     }
 
     #[test]

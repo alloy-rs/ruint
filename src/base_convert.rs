@@ -517,13 +517,17 @@ mod tests {
     #[test]
     #[should_panic = "assertion failed: base > 1"]
     fn test_to_base_be_2_base_0_panics() {
-        let _ = Uint::<64, 1>::from(5u64).to_base_be_2(0).collect::<Vec<_>>();
+        let _ = Uint::<64, 1>::from(5u64)
+            .to_base_be_2(0)
+            .collect::<Vec<_>>();
     }
 
     #[test]
     #[should_panic = "assertion failed: base > 1"]
     fn test_to_base_be_2_base_1_panics() {
-        let _ = Uint::<64, 1>::from(5u64).to_base_be_2(1).collect::<Vec<_>>();
+        let _ = Uint::<64, 1>::from(5u64)
+            .to_base_be_2(1)
+            .collect::<Vec<_>>();
     }
 
     #[test]
