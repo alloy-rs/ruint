@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `checked_log`, `checked_log2`, and `checked_log10` no longer panic for small bit-widths where the base constant does not fit the type ([#610])
+
+[#610]: https://github.com/alloy-rs/ruint/pull/610
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
