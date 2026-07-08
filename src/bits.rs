@@ -6,13 +6,13 @@ use core::ops::{
 
 /// Saturating `usize` → `u32` cast for shift amounts.
 ///
-/// The primitive fast paths (`LIMBS ∈ {1, 2, 4}`) feed `rhs` to `unbounded_sh*`,
-/// which take a `u32`. A plain `rhs as u32` cast reduces shift amounts `>= 2^32`
-/// mod `2^32`, shifting by the wrong amount instead of shifting the whole value
-/// out. Saturating to `u32::MAX` keeps any such shift `>= BITS`, so
-/// `unbounded_sh*` returns 0, matching the generic path. Branchless, and a
-/// no-op the compiler elides on 32-bit targets (where `usize` cannot exceed
-/// `u32::MAX`).
+/// The primitive fast paths (`LIMBS ∈ {1, 2, 4}`) feed `rhs` to
+/// `unbounded_sh*`, which take a `u32`. A plain `rhs as u32` cast reduces shift
+/// amounts `>= 2^32` mod `2^32`, shifting by the wrong amount instead of
+/// shifting the whole value out. Saturating to `u32::MAX` keeps any such shift
+/// `>= BITS`, so `unbounded_sh*` returns 0, matching the generic path.
+/// Branchless, and a no-op the compiler elides on 32-bit targets (where `usize`
+/// cannot exceed `u32::MAX`).
 #[inline(always)]
 const fn shift_amount(rhs: usize) -> u32 {
     select_unpredictable_u32(rhs > u32::MAX as usize, u32::MAX, rhs as u32)
