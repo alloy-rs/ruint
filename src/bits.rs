@@ -546,8 +546,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
         let mut carry = 0;
 
-        // 0 1 2 3
-        //
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[LIMBS - 1 - i];
             r.limbs[LIMBS - 1 - i - limbs] = (x >> bits) | carry;
@@ -1360,5 +1358,27 @@ mod tests {
         let num = Uint::<128, 2>::from(1u64);
         assert_eq!(num.overflowing_shr(64), (Uint::ZERO, true));
         assert!(num.checked_shr(64).is_none());
+    }
+
+    #[test]
+    fn correctness_8_7_2026_wrapping_shifts() {
+        // shift amounts >= BITS produce zero; the amount must not be
+        // reduced mod 2^32 by the primitive fast paths (LIMBS = 1, 2, 4)
+        let huge = 1usize << 32;
+        assert_eq!(Uint::<64, 1>::from(1u64).wrapping_shl(huge), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::from(1u64).wrapping_shl(huge + 3), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX.wrapping_shr(huge), Uint::ZERO);
+        assert_eq!(Uint::<128, 2>::MAX.wrapping_shl(huge), Uint::ZERO);
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shr(huge), Uint::ZERO);
+        // the generic path (3 limbs) already handles this
+        assert_eq!(Uint::<192, 3>::from(1u64).wrapping_shl(huge), Uint::ZERO);
+
+        // the operators route through wrapping_shl/wrapping_shr
+        assert_eq!(Uint::<64, 1>::from(1u64) << huge, Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX >> huge, Uint::ZERO);
+
+        // arithmetic_shr: fills with the sign bit for huge shift amounts
+        assert_eq!(Uint::<64, 1>::from(5u64).arithmetic_shr(huge), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX.arithmetic_shr(huge), Uint::<64, 1>::MAX);
     }
 }
