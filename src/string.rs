@@ -145,7 +145,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Power-of-2 radix: shift digits directly into limbs, no multiplication.
     #[inline]
     const fn from_str_radix_pow2(src: &str, radix: u64) -> Result<Self, ParseError> {
-        debug_assert!(radix.is_power_of_two());
+        // This catches the case where radix is 1.
+        if radix < 2 {
+            return Err(ParseError::InvalidRadix(radix));
+        }
+
         let bits_per_digit = radix.trailing_zeros() as usize;
         let mut result = Self::ZERO;
         let mut total_bits = 0usize;
@@ -299,6 +303,12 @@ mod tests {
     fn test_from_str_radix_errors() {
         assert!(U8::from_str_radix("...", 0).is_err());
         assert!(U8::from_str_radix("...", 1).is_err());
+        // Radix 1 is a power of two, so this exercises `from_str_radix_pow2`
+        // directly rather than tripping over an invalid digit first.
+        assert_eq!(
+            U8::from_str_radix("0", 1),
+            Err(ParseError::InvalidRadix(1))
+        );
     }
 
     #[test]
