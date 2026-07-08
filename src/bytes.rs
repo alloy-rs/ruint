@@ -241,7 +241,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return None;
         }
 
-        if Self::BYTES % 8 == 0 && bytes.len() == Self::BYTES {
+        if Self::BITS % 64 == 0 && bytes.len() == Self::BYTES {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
             let end = bytes.as_ptr_range().end;
@@ -315,7 +315,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return None;
         }
 
-        if Self::BYTES % 8 == 0 && bytes.len() == Self::BYTES {
+        if Self::BITS % 64 == 0 && bytes.len() == Self::BYTES {
             // Optimized implementation for full-limb types.
             let mut limbs = [0; LIMBS];
             const_range_for!(i in 0..LIMBS => {
@@ -580,6 +580,27 @@ mod tests {
         assert_eq!(
             Uint::<72, 2>::try_from_le_slice(&[&KLE[..], &[0xff]].concat()),
             None
+        );
+    }
+
+    #[test]
+    fn test_from_slice_too_large_returns_none() {
+        // Regression: `BITS % 64` in 57..=63 gives `BYTES = 8 * LIMBS`, so the
+        // full-limb fast path was taken even though the top limb is masked.
+        // An all-ones input overflows the mask and must return `None`, not panic.
+        assert_eq!(Uint::<60, 1>::try_from_be_slice(&[0xff; 8]), None);
+        assert_eq!(Uint::<60, 1>::try_from_le_slice(&[0xff; 8]), None);
+        assert_eq!(Uint::<121, 2>::try_from_be_slice(&[0xff; 16]), None);
+        assert_eq!(Uint::<121, 2>::try_from_le_slice(&[0xff; 16]), None);
+
+        // Values that do fit must still be accepted on this fast path.
+        assert_eq!(
+            Uint::<60, 1>::try_from_be_slice(&[0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]),
+            Some(Uint::<60, 1>::from(0x0fff_ffff_ffff_ffff_u64))
+        );
+        assert_eq!(
+            Uint::<60, 1>::try_from_le_slice(&[0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f]),
+            Some(Uint::<60, 1>::from(0x0fff_ffff_ffff_ffff_u64))
         );
     }
 
