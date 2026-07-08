@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `from_str_radix` and `to_base_be` no longer hang or silently accept radix/base 0 or 1 ([#608])
+
+[#608]: https://github.com/alloy-rs/ruint/pull/608
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
