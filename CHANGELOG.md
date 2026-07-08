@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `try_from_be_slice`/`try_from_le_slice` now return `None` instead of panicking for `BITS % 64` in `57..=63` ([#607])
+
+[#607]: https://github.com/alloy-rs/ruint/pull/607
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
