@@ -405,11 +405,18 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
+        // check the limbs that are entirely shifted out.
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[i];
             r.limbs[i + limbs] = (x << bits) | carry;
             carry = x.unbounded_shr(64 - bits);
         });
+        // we need to know whether any limb entirely shifted out is non-zero
+        const_range_for!(i in (LIMBS - limbs)..LIMBS => {
+            carry |= self.limbs[i];
+        });
+        // we also need to know if the top limb is dirty before masking
+        carry |= r.maskable_bits();
         (r.masked(), carry != 0)
     }
 
@@ -538,10 +545,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
+
+        // 0 1 2 3
+        //
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[LIMBS - 1 - i];
             r.limbs[LIMBS - 1 - i - limbs] = (x >> bits) | carry;
             carry = x.unbounded_shl(64 - bits);
+        });
+        // we need to know if any limb entirely shifted out is non-zero
+        const_range_for!(i in 0..limbs => {
+            carry |= self.limbs[i];
         });
         (r, carry != 0)
     }
@@ -1325,5 +1339,26 @@ mod tests {
     #[should_panic(expected = "attempt to shift right with overflow")]
     fn test_strict_shr_overflow() {
         let _ = crate::aliases::U64::from(1u64).strict_shr(1);
+    }
+
+    #[test]
+    fn correctness_8_7_2026_overflowing_shl() {
+        // limbs entirely shifted out are caught
+        let num = Uint::<128, 2>::from_limbs([0, 1]);
+        assert_eq!(num.overflowing_shl(64), (Uint::ZERO, true));
+        assert!(num.checked_shl(64).is_none());
+
+        // masked bits are caught
+        let num = Uint::<65, 2>::from_limbs([0, 1]);
+        assert_eq!(num.overflowing_shl(1), (Uint::ZERO, true));
+        assert_eq!(num.overflowing_shl(64), (Uint::ZERO, true));
+    }
+
+    #[test]
+    fn correctness_8_7_2026_overflowing_shr() {
+        // limbs entirely shifted out are caught
+        let num = Uint::<128, 2>::from(1u64);
+        assert_eq!(num.overflowing_shr(64), (Uint::ZERO, true));
+        assert!(num.checked_shr(64).is_none());
     }
 }

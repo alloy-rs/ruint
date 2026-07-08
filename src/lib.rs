@@ -348,6 +348,15 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     }
 
     #[inline(always)]
+    const fn maskable_bits(&self) -> u64 {
+        if Self::SHOULD_MASK {
+            self.limbs[LIMBS - 1] & !Self::MASK
+        } else {
+            0
+        }
+    }
+
+    #[inline(always)]
     const fn masked(mut self) -> Self {
         self.apply_mask();
         self
