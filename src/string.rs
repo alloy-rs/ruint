@@ -46,8 +46,10 @@ impl fmt::Display for ParseError {
 
 /// Returns `(base, power)` where `base = radix^power` is the largest power of
 /// `radix` that fits in a `u64`.
-const fn radix_base(radix: u64) -> (u64, usize) {
-    debug_assert!(radix >= 2);
+const fn radix_base(radix: u64) -> Option<(u64, usize)> {
+    if radix < 2 {
+        return None;
+    }
     let mut power: usize = 1;
     let mut base = radix;
     loop {
@@ -56,7 +58,7 @@ const fn radix_base(radix: u64) -> (u64, usize) {
                 base = n;
                 power += 1;
             }
-            None => return (base, power),
+            None => return Some((base, power)),
         }
     }
 }
@@ -184,7 +186,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[allow(clippy::cast_possible_truncation)]
     #[inline]
     const fn from_str_radix_chunked(src: &str, radix: u64) -> Result<Self, ParseError> {
-        let (base, power) = radix_base(radix);
+        let Some((base, power)) = radix_base(radix) else {
+            return Err(ParseError::InvalidRadix(radix));
+        };
         let mut result = Self::ZERO;
         let mut chunk_val: u64 = 0;
         let mut chunk_digits: usize = 0;
@@ -257,6 +261,8 @@ impl<const BITS: usize, const LIMBS: usize> FromStr for Uint<BITS, LIMBS> {
 
 #[cfg(test)]
 mod tests {
+    use crate::aliases::U8;
+
     use super::*;
     use proptest::{prop_assert_eq, proptest};
 
@@ -287,6 +293,12 @@ mod tests {
                 _ => panic!(),
             }
         }
+    }
+
+    #[test]
+    fn test_from_str_radix_errors() {
+        assert!(U8::from_str_radix("...", 0).is_err());
+        assert!(U8::from_str_radix("...", 1).is_err());
     }
 
     #[test]
