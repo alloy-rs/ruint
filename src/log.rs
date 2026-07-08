@@ -9,7 +9,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn checked_log(self, base: Self) -> Option<usize> {
-        if base < Self::from(2) || self.is_zero() {
+        // `base < 2` is `base <= 1`, which avoids materializing `2` with the
+        // panicking `Self::from` — `2` does not fit when `BITS < 2`.
+        if base <= Self::ONE || self.is_zero() {
             return None;
         }
         Some(self.log(base))
@@ -21,7 +23,15 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn checked_log10(self) -> Option<usize> {
-        self.checked_log(Self::from(10))
+        if self.is_zero() {
+            return None;
+        }
+        match Self::try_from(10u64) {
+            Ok(base) => Some(self.log(base)),
+            // `10` does not fit (`BITS < 4`), so every representable value is
+            // strictly less than `10` and its base-10 logarithm is `0`.
+            Err(_) => Some(0),
+        }
     }
 
     /// Returns the base 2 logarithm of the number, rounded down.
@@ -32,7 +42,12 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn checked_log2(self) -> Option<usize> {
-        self.checked_log(Self::from(2))
+        if self.is_zero() {
+            return None;
+        }
+        // The base-2 logarithm is the index of the highest set bit. Computing it
+        // directly avoids materializing `2`, which does not fit when `BITS < 2`.
+        Some(self.bit_len() - 1)
     }
 
     /// Returns the logarithm of the number, rounded down.
@@ -167,6 +182,34 @@ mod tests {
         assert_eq!(U128::from(3).checked_log2(), Some(1));
         assert_eq!(U128::from(127).checked_log2(), Some(6));
         assert_eq!(U128::from(128).checked_log2(), Some(7));
+    }
+
+    #[test]
+    fn test_checked_log_tiny_bits() {
+        // The `checked_*` variants return an `Option` and must never panic, even
+        // when the base constant (2 or 10) is too large for the bit-width.
+
+        // BITS < 2: the type cannot represent 2.
+        assert_eq!(Uint::<0, 0>::ZERO.checked_log2(), None);
+        assert_eq!(Uint::<1, 1>::ZERO.checked_log2(), None);
+        assert_eq!(Uint::<1, 1>::from(1u64).checked_log2(), Some(0));
+
+        // `checked_log` with a base that is 0 or 1 (all bases fit in `Uint<1, 1>`)
+        // returns None rather than panicking on `Self::from(2)`.
+        let one = Uint::<1, 1>::from(1u64);
+        assert_eq!(Uint::<1, 1>::ZERO.checked_log(one), None);
+        assert_eq!(one.checked_log(one), None);
+        assert_eq!(one.checked_log(Uint::<1, 1>::ZERO), None);
+
+        // BITS < 4: the type cannot represent 10. Every representable value is
+        // therefore < 10, so the base-10 logarithm of any nonzero value is 0.
+        assert_eq!(Uint::<2, 1>::ZERO.checked_log10(), None);
+        assert_eq!(Uint::<2, 1>::from(3u64).checked_log10(), Some(0));
+        assert_eq!(Uint::<3, 1>::from(7u64).checked_log10(), Some(0));
+
+        // BITS == 4: 10 fits, so the normal path is taken and boundaries hold.
+        assert_eq!(Uint::<4, 1>::from(9u64).checked_log10(), Some(0));
+        assert_eq!(Uint::<4, 1>::from(15u64).checked_log10(), Some(1));
     }
 
     #[test]
