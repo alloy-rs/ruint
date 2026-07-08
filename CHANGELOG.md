@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `from_str_radix` rejecting the lowercase digits `g`–`z` in radix 64 ([#605])
+
+[#605]: https://github.com/alloy-rs/ruint/pull/605
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
