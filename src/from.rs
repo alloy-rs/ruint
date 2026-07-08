@@ -531,6 +531,22 @@ impl<const BITS: usize, const LIMBS: usize> TryFrom<f64> for Uint<BITS, LIMBS> {
         let f = value;
         let fixint_bits = Self::BITS;
 
+        // Reject non-finite inputs up front, independent of BITS. The overflow
+        // check below keys off the unbiased exponent (1024 for NaN/inf), which
+        // stops exceeding BITS once BITS >= 1025, so it cannot be relied upon to
+        // catch these. NaN is rejected before the sign split so that a
+        // negatively-signed NaN is `NotANumber`, not `ValueNegative`.
+        if f.is_nan() {
+            return Err(ToUintError::NotANumber(BITS));
+        }
+        if f.is_infinite() {
+            return if f > 0.0 {
+                Err(ToUintError::ValueTooLarge(BITS, Self::ZERO))
+            } else {
+                Err(ToUintError::ValueNegative(BITS, Self::ZERO))
+            };
+        }
+
         let sign_bit = 0x8000_0000_0000_0000u64;
         let significand_bits = 52usize;
         let exponent_bias = 1023usize;
@@ -616,10 +632,8 @@ impl<const BITS: usize, const LIMBS: usize> TryFrom<f64> for Uint<BITS, LIMBS> {
         // If the value is too large for the integer type, wrap (drop high bits) and
         // return it in the error.
         if exponent >= fixint_bits {
-            if value.is_nan() {
-                return Err(ToUintError::NotANumber(BITS));
-            }
-
+            // NaN and infinity were already handled above, so `value` is finite
+            // here and this branch only covers genuinely too-large magnitudes.
             let mag = compute_mag(exponent);
             let wrapped = match sign {
                 Sign::Positive => mag,
@@ -818,9 +832,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return 0;
         }
 
-        // Early +∞ if exponent field is already saturated before rounding.
-        // e_pre = 1021 + sd; saturation when e_pre >= 0x7ff <=> sd >= 1026
-        if sd >= 1026 {
+        // Early +∞ for any value >= 2^1024, which exceeds f64::MAX. sd == 1025
+        // must be included: its pre-rounding exponent field is 2046 and its
+        // mantissa carries into the reserved exponent 2047, decoding as NaN or
+        // (on rounding carry) -0.0 rather than +∞.
+        if sd >= 1025 {
             return 0x7ff0_0000_0000_0000;
         }
 
@@ -1038,6 +1054,71 @@ mod test {
 
         assert!(f64::from(Uint::<F64_BITS, F_64LIMBS>::MAX).is_infinite());
         assert!(f32::from(Uint::<F32_BITS, F_32LIMBS>::MAX).is_infinite());
+    }
+
+    // Non-finite f64 inputs must be rejected regardless of BITS. For BITS >= 1025
+    // the unbiased exponent of NaN/inf (1024) no longer exceeds BITS, so the
+    // overflow check alone does not fire.
+    #[test]
+    fn correctness_8_7_2026_try_from_nonfinite_large_bits() {
+        type U2048 = Uint<2048, 32>;
+
+        assert_eq!(
+            U2048::try_from(f64::INFINITY),
+            Err(ToUintError::ValueTooLarge(2048, U2048::ZERO))
+        );
+        assert_eq!(
+            U2048::try_from(f64::NEG_INFINITY),
+            Err(ToUintError::ValueNegative(2048, U2048::ZERO))
+        );
+        assert!(matches!(
+            U2048::try_from(f64::NAN),
+            Err(ToUintError::NotANumber(2048))
+        ));
+        // A negatively-signed NaN must also be NotANumber, not ValueNegative.
+        assert!(matches!(
+            U2048::try_from(-f64::NAN),
+            Err(ToUintError::NotANumber(2048))
+        ));
+
+        assert_eq!(U2048::saturating_from(f64::INFINITY), U2048::MAX);
+        assert_eq!(U2048::saturating_from(f64::NEG_INFINITY), U2048::ZERO);
+        assert_eq!(U2048::saturating_from(f64::NAN), U2048::ZERO);
+
+        assert_eq!(U2048::wrapping_from(f64::INFINITY), U2048::ZERO);
+        assert_eq!(U2048::wrapping_from(f64::NAN), U2048::ZERO);
+    }
+
+    // Any value >= 2^1024 exceeds f64::MAX and must round to +inf. A value with
+    // exactly 1025 significant bits previously landed in the exponent-2047
+    // encoding space and decoded as NaN or -0.0.
+    #[test]
+    fn correctness_8_7_2026_uint_to_f64_saturates_1025_bits() {
+        type U1088 = Uint<1088, 17>;
+
+        let v = (U1088::from(1u64) << 1024) | (U1088::from(1u64) << 1023);
+        assert_eq!(f64::from(v), f64::INFINITY);
+
+        let w = (U1088::from(1u64) << 1025) - U1088::from(1u64);
+        assert_eq!(f64::from(w), f64::INFINITY);
+
+        // f32 conversion goes through f64, so it must saturate too.
+        assert_eq!(f32::from(v), f32::INFINITY);
+
+        // Exactly 2^1024 (1025 significant bits) rounds to +inf.
+        assert_eq!(f64::from(U1088::from(1u64) << 1024), f64::INFINITY);
+
+        // Boundary sanity: values below f64::MAX stay finite. 2^1023 has 1024
+        // significant bits and is comfortably representable.
+        assert!(f64::from(U1088::from(1u64) << 1023).is_finite());
+
+        // The largest finite f64, (2^53 - 1) * 2^971, also has 1024 significant
+        // bits and must convert to exactly f64::MAX.
+        let f64_max = ((U1088::from(1u64) << 53) - U1088::from(1u64)) << 971;
+        assert_eq!(f64::from(f64_max), f64::MAX);
+
+        // 2^1026 also saturates.
+        assert_eq!(f64::from(U1088::from(1u64) << 1026), f64::INFINITY);
     }
 
     #[cfg(feature = "std")]
