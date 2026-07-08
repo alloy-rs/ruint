@@ -119,7 +119,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         const_range_for!(&b in ref bytes => {
             let digit = match b {
                 b'A'..=b'Z' => b - b'A',
-                b'a'..=b'f' => b - b'a' + 26,
+                b'a'..=b'z' => b - b'a' + 26,
                 b'0'..=b'9' => b - b'0' + 52,
                 b'+' | b'-' => 62,
                 b'/' | b',' | b'_' => 63,
