@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Run the core test suite on `wasm32-wasip1` in CI to catch 32-bit pointer-width bugs ([#609])
+
+[#609]: https://github.com/alloy-rs/ruint/pull/609
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
