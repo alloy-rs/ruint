@@ -77,6 +77,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         #[cfg(target_endian = "big")]
         #[allow(clippy::cast_possible_truncation)] // intentional
         {
+            assert!(index < Self::BYTES, "index out of bounds");
             (self.limbs[index / 8] >> ((index % 8) * 8)) as u8
         }
     }
