@@ -165,7 +165,7 @@ pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
 /// $$
 /// \begin{aligned}
 /// \mathsf{lhs'} &= \mod{\mathsf{lhs} - \mathsf{a} ⋅ \mathsf{b}}_{2^{64⋅N}}
-/// \\\\ \mathsf{borrow} &= \floor{\frac{\mathsf{a} ⋅ \mathsf{b} -
+/// \\\\ \mathsf{borrow} &= \ceil{\frac{\mathsf{a} ⋅ \mathsf{b} -
 /// \mathsf{lhs}}{2^{64⋅N}}} \end{aligned}
 /// $$
 // OPT: `carry` and `borrow` can probably be merged into a single var.
