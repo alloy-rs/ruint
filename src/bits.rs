@@ -4,6 +4,20 @@ use core::ops::{
     ShrAssign,
 };
 
+/// Saturating `usize` → `u32` cast for shift amounts.
+///
+/// The primitive fast paths (`LIMBS ∈ {1, 2, 4}`) feed `rhs` to `unbounded_sh*`,
+/// which take a `u32`. A plain `rhs as u32` cast reduces shift amounts `>= 2^32`
+/// mod `2^32`, shifting by the wrong amount instead of shifting the whole value
+/// out. Saturating to `u32::MAX` keeps any such shift `>= BITS`, so
+/// `unbounded_sh*` returns 0, matching the generic path. Branchless, and a
+/// no-op the compiler elides on 32-bit targets (where `usize` cannot exceed
+/// `u32::MAX`).
+#[inline(always)]
+const fn shift_amount(rhs: usize) -> u32 {
+    select_unpredictable_u32(rhs > u32::MAX as usize, u32::MAX, rhs as u32)
+}
+
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns whether a specific bit is set.
     ///
@@ -451,25 +465,21 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline(always)]
     #[must_use]
     pub const fn wrapping_shl(self, rhs: usize) -> Self {
-        if rhs > Self::BITS {
-            return Self::ZERO;
-        }
-
         as_primitives!(self; {
             u64(x) => {
                 let mut r = Self::ZERO;
-                r.limbs[0] = x.unbounded_shl(rhs as u32);
+                r.limbs[0] = x.unbounded_shl(shift_amount(rhs));
                 return r.masked();
             },
             u128(x) => {
-                let r = x.unbounded_shl(rhs as u32);
+                let r = x.unbounded_shl(shift_amount(rhs));
                 let mut out = Self::ZERO;
                 out.limbs[0] = r as u64;
                 out.limbs[1] = (r >> 64) as u64;
                 return out.masked();
             },
             u256((lo, hi)) => {
-                let rhs = rhs as u32;
+                let rhs = shift_amount(rhs);
                 // Compute as if rhs < 128.
                 let new_lo = lo.unbounded_shl(rhs);
                 let new_hi = hi.unbounded_shl(rhs) | lo.unbounded_shr(128u32.wrapping_sub(rhs));
@@ -599,24 +609,21 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline(always)]
     #[must_use]
     pub const fn wrapping_shr(self, rhs: usize) -> Self {
-        if rhs > Self::BITS {
-            return Self::ZERO;
-        }
         as_primitives!(self; {
             u64(x) => {
                 let mut r = Self::ZERO;
-                r.limbs[0] = x.unbounded_shr(rhs as u32);
+                r.limbs[0] = x.unbounded_shr(shift_amount(rhs));
                 return r;
             },
             u128(x) => {
-                let r = x.unbounded_shr(rhs as u32);
+                let r = x.unbounded_shr(shift_amount(rhs));
                 let mut out = Self::ZERO;
                 out.limbs[0] = r as u64;
                 out.limbs[1] = (r >> 64) as u64;
                 return out;
             },
             u256((lo, hi)) => {
-                let rhs = rhs as u32;
+                let rhs = shift_amount(rhs);
                 // Compute as if rhs < 128.
                 let new_hi = hi.unbounded_shr(rhs);
                 let new_lo = lo.unbounded_shr(rhs) | hi.unbounded_shl(128u32.wrapping_sub(rhs));
