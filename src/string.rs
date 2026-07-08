@@ -294,7 +294,7 @@ mod tests {
         type U8 = Uint<8, 1>;
 
         assert_eq!(U8::from_str_radix("Z", 64), Ok(U8::from(25)));
-        assert_eq!(U8::from_str_radix("z", 64), Ok(U8::from(25)));
+        assert_eq!(U8::from_str_radix("z", 64), Ok(U8::from(51)));
         assert_eq!(U8::from_str_radix("a", 64), Ok(U8::from(26)));
         assert_eq!(U8::from_str_radix("f", 64), Ok(U8::from(31)));
         assert_eq!(U8::from_str_radix("0", 64), Ok(U8::from(52)));
