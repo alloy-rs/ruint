@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Mark `addmul_nx1`/`submul_nx1` `unsafe` and close soundness / safety-contract gaps in the unstable `algorithms` module ([#612])
+
+[#612]: https://github.com/alloy-rs/ruint/pull/612
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
