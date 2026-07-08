@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix incorrect doc comments and formulas in the `add`, `mul`, and `gcd` algorithms ([#611])
+
+[#611]: https://github.com/alloy-rs/ruint/pull/611
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
