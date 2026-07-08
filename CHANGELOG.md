@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject non-finite `f64` in `TryFrom<f64>` and saturate `Uint`→`f64` conversions at 2^1024 for large `BITS` ([#606])
+
+[#606]: https://github.com/alloy-rs/ruint/pull/606
+
 ## [1.19.0] - 2026-07-03
 
 ### Added
