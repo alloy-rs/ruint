@@ -45,7 +45,7 @@ pub fn carrying_add_n(lhs: &mut [u64], rhs: &[u64], mut carry: bool) -> bool {
     carry
 }
 
-/// ⚠️ `lhs -= rhs - borrow`
+/// ⚠️ `lhs -= rhs + borrow`
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
 pub fn borrowing_sub_n(lhs: &mut [u64], rhs: &[u64], mut borrow: bool) -> bool {
