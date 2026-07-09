@@ -1,3 +1,8 @@
 # This enables KaTex in docs, but requires running `cargo doc --no-deps`.
 [build]
 rustdocflags = "--html-in-header .cargo/katex-header.html"
+
+# Run wasm tests under wasmtime, e.g. `cargo test --target wasm32-wasip1`.
+# Requires `wasmtime` on PATH and the `wasm32-wasip1` target installed.
+[target.wasm32-wasip1]
+runner = "wasmtime"
