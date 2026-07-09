@@ -135,6 +135,21 @@ impl_fmt_pow2!(fmt::Octal; base::Octal, false);
 impl_fmt_pow2!(fmt::LowerHex; base::Hexadecimal, false);
 impl_fmt_pow2!(fmt::UpperHex; base::Hexadecimal, true);
 
+#[cfg(feature = "alloc")]
+impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
+    /// Converts this integer to a decimal string.
+    ///
+    /// This method intentionally shadows [`ToString::to_string`].
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[inline]
+    #[must_use]
+    pub fn to_string(&self) -> alloc::string::String {
+        let mut string = alloc::string::String::with_capacity(BITS);
+        write!(string, "{self}").unwrap();
+        string
+    }
+}
+
 /// A stack-allocated buffer that implements [`fmt::Write`].
 pub(crate) struct StackString<const SIZE: usize> {
     len: usize,
@@ -202,9 +217,6 @@ mod tests {
     use super::*;
     use proptest::{prop_assert_eq, proptest};
 
-    #[allow(unused_imports)]
-    use alloc::string::ToString;
-
     #[allow(clippy::unreadable_literal)]
     const N: Uint<256, 4> = Uint::from_limbs([
         0xa8ec92344438aaf4_u64,
@@ -231,6 +243,14 @@ mod tests {
             format!("{N:o}"),
             "14413675753626443771712563543234062301470152300636573364375252543243544443210416125364"
         );
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn test_to_string() {
+        let string = Uint::<4096, 64>::ZERO.to_string();
+        assert_eq!(string, "0");
+        assert!(string.capacity() >= Uint::<4096, 64>::BITS);
     }
 
     #[test]
