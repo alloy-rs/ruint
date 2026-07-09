@@ -105,10 +105,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         };
 
         // Continue with rest of limbs
+        let two = Self::const_from_u64(2);
         let mut correct_limbs = 1;
         while correct_limbs < LIMBS {
-            let mut two = Self::ZERO;
-            two.limbs[0] = 2;
             result = result.wrapping_mul(two.wrapping_sub(self.wrapping_mul(result)));
             correct_limbs *= 2;
         }
