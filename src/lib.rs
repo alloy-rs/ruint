@@ -308,7 +308,10 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             }
             let mut overflow = false;
             const_range_for!(&limb in ref tail => {
-                overflow |= limb != 0;
+                if limb != 0 {
+                    overflow = true;
+                    break;
+                }
             });
             if LIMBS > 0 {
                 overflow |= limbs[LIMBS - 1] > Self::MASK;
