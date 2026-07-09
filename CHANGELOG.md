@@ -15,11 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `try_from_be_slice`/`try_from_le_slice` now return `None` instead of panicking for `BITS % 64` in `57..=63` ([#607])
 - `from_str_radix` and `to_base_be` no longer hang or silently accept radix/base 0 or 1 ([#608])
 - `checked_log`, `checked_log2`, and `checked_log10` no longer panic for small bit-widths where the base constant does not fit the type ([#610])
 - Fix incorrect doc comments and formulas in the `add`, `mul`, and `gcd` algorithms ([#611])
 - Mark `addmul_nx1`/`submul_nx1` `unsafe` and close soundness / safety-contract gaps in the unstable `algorithms` module ([#612])
 
+[#607]: https://github.com/alloy-rs/ruint/pull/607
 [#608]: https://github.com/alloy-rs/ruint/pull/608
 [#609]: https://github.com/alloy-rs/ruint/pull/609
 [#610]: https://github.com/alloy-rs/ruint/pull/610
