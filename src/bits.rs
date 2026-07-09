@@ -315,27 +315,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub const fn most_significant_bits(&self) -> (u64, usize) {
-        let mut first_set_limb = 0;
-        const_range_for!(i in 0..LIMBS => {
-            let i = LIMBS - 1 - i;
-            if self.limbs[i] != 0 {
-                first_set_limb = i;
-                break;
-            }
-        });
-        if first_set_limb == 0 {
-            let bits = if LIMBS == 0 { 0 } else { self.limbs[0] };
-            (bits, 0)
+        let significant_words = self.count_significant_words();
+        if significant_words == 0 {
+            (0, 0)
+        } else if significant_words == 1 {
+            (self.limbs[0], 0)
         } else {
-            let hi = self.limbs[first_set_limb];
-            let lo = self.limbs[first_set_limb - 1];
+            let i = significant_words - 1;
+            let hi = self.limbs[i];
+            let lo = self.limbs[i - 1];
             let leading_zeros = hi.leading_zeros();
             let bits = if leading_zeros > 0 {
                 (hi << leading_zeros) | (lo >> (64 - leading_zeros))
             } else {
                 hi
             };
-            let exponent = first_set_limb * 64 - leading_zeros as usize;
+            let exponent = i * 64 - leading_zeros as usize;
             (bits, exponent)
         }
     }
