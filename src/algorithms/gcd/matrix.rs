@@ -256,10 +256,10 @@ impl Matrix {
         // Use Jebelean's exact condition to determine which outputs are correct.
         // Statistically, i + 2 should be correct about two-thirds of the time.
         if even {
-            // Test i + 1 (odd)
+            // Test i + 1 (even)
             debug_assert!(a2 >= v2);
             if a1 - a2 >= u2 + u1 {
-                // Test i + 2 (even)
+                // Test i + 2 (odd)
                 if a3 >= u3 && a2 - a3 >= v3 + v2 {
                     // Correct value is i + 2
                     Matrix(u2, v2, u3, v3, true)
@@ -272,10 +272,10 @@ impl Matrix {
                 Matrix(u0, v0, u1, v1, true)
             }
         } else {
-            // Test i + 1 (even)
+            // Test i + 1 (odd)
             debug_assert!(a2 >= u2);
             if a1 - a2 >= v2 + v1 {
-                // Test i + 2 (odd)
+                // Test i + 2 (even)
                 if a3 >= v3 && a2 - a3 >= u3 + u2 {
                     // Correct value is i + 2
                     Matrix(u2, v2, u3, v3, false)
