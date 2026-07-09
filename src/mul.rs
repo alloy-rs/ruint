@@ -1,7 +1,6 @@
 use crate::{Uint, algorithms, nlimbs};
 use core::{
     iter::Product,
-    num::Wrapping,
     ops::{Mul, MulAssign},
 };
 
@@ -87,7 +86,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// [`None`] if the inverse does not exist.
     #[inline]
     #[must_use]
-    pub fn inv_ring(self) -> Option<Self> {
+    pub const fn inv_ring(self) -> Option<Self> {
         if BITS == 0 || self.limbs[0] & 1 == 0 {
             return None;
         }
@@ -95,22 +94,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         // Compute inverse of first limb
         let mut result = Self::ZERO;
         result.limbs[0] = {
-            const W2: Wrapping<u64> = Wrapping(2);
-            const W3: Wrapping<u64> = Wrapping(3);
-            let n = Wrapping(self.limbs[0]);
-            let mut inv = (n * W3) ^ W2; // Correct on 4 bits.
-            inv *= W2 - n * inv; // Correct on 8 bits.
-            inv *= W2 - n * inv; // Correct on 16 bits.
-            inv *= W2 - n * inv; // Correct on 32 bits.
-            inv *= W2 - n * inv; // Correct on 64 bits.
-            debug_assert_eq!(n.0.wrapping_mul(inv.0), 1);
-            inv.0
+            let n = self.limbs[0];
+            let mut inv = n.wrapping_mul(3) ^ 2; // Correct on 4 bits.
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n.wrapping_mul(inv))); // Correct on 8 bits.
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n.wrapping_mul(inv))); // Correct on 16 bits.
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n.wrapping_mul(inv))); // Correct on 32 bits.
+            inv = inv.wrapping_mul(2u64.wrapping_sub(n.wrapping_mul(inv))); // Correct on 64 bits.
+            debug_assert!(n.wrapping_mul(inv) == 1);
+            inv
         };
 
         // Continue with rest of limbs
         let mut correct_limbs = 1;
         while correct_limbs < LIMBS {
-            result *= Self::from(2) - self * result;
+            let mut two = Self::ZERO;
+            two.limbs[0] = 2;
+            result = result.wrapping_mul(two.wrapping_sub(self.wrapping_mul(result)));
             correct_limbs *= 2;
         }
         result.apply_mask();
@@ -194,7 +193,7 @@ impl_bin_op!(Mul, mul, MulAssign, mul_assign, wrapping_mul);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::const_for;
+    use crate::{const_for, nlimbs};
     use proptest::proptest;
 
     #[test]
@@ -218,6 +217,22 @@ mod tests {
             assert!(widening.as_limbs()[0] == u64::MAX - 1);
             assert!(widening.as_limbs()[1] == 1);
         }
+    }
+
+    #[test]
+    fn test_const_inv_ring() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            const {
+                let inverse = U::MAX.inv_ring();
+                if BITS == 0 {
+                    assert!(inverse.is_none());
+                } else {
+                    assert!(matches!(inverse, Some(value) if value.const_eq(&U::MAX)));
+                }
+            }
+        });
     }
 
     #[test]
