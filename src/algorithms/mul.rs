@@ -57,7 +57,8 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
     const_range_for!(&b in ref b => {
         if lhs.len() >= a.len() {
             let (target, rest) = lhs.split_at_mut(a.len());
-            let carry = addmul_nx1(target, a, b);
+            // SAFETY: `target` has length `a.len()` from `split_at_mut(a.len())`.
+            let carry = unsafe { addmul_nx1(target, a, b) };
             let carry = add_nx1(rest, carry);
             overflow |= carry != 0;
         } else {
@@ -66,7 +67,8 @@ pub const fn addmul(mut lhs: &mut [u64], mut a: &[u64], mut b: &[u64]) -> bool {
                 break;
             }
             let (a, _) = a.split_at(lhs.len());
-            addmul_nx1(lhs, a, b);
+            // SAFETY: `a` is truncated to `lhs.len()`, so `lhs.len() == a.len()`.
+            unsafe { addmul_nx1(lhs, a, b) };
         }
         (_, lhs) = lhs.split_at_mut(1);
     });
@@ -139,9 +141,14 @@ pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 }
 
 /// ⚠️ Computes `lhs += a * b` and returns the carry.
-#[doc = crate::algorithms::unstable_warning!()]
-/// Requires `lhs.len() == a.len()`.
 ///
+/// # Safety
+///
+/// `lhs.len()` MUST equal `a.len()`.
+///
+/// In debug mode, panics if the condition of use is violated. In release, may
+/// panic or trigger UB if the condition of use is violated.
+#[doc = crate::algorithms::unstable_warning!()]
 /// $$
 /// \begin{aligned}
 /// \mathsf{lhs'} &= \mod{\mathsf{lhs} + \mathsf{a} ⋅ \mathsf{b}}_{2^{64⋅N}}
@@ -149,7 +156,7 @@ pub const fn mul_nx1(lhs: &mut [u64], a: u64) -> u64 {
 /// }{2^{64⋅N}}} \end{aligned}
 /// $$
 #[inline(always)]
-pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const unsafe fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     const_range_for!(i in 0..a.len() => {
@@ -159,18 +166,23 @@ pub const fn addmul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
 }
 
 /// ⚠️ Computes `lhs -= a * b` and returns the borrow.
-#[doc = crate::algorithms::unstable_warning!()]
-/// Requires `lhs.len() == a.len()`.
 ///
+/// # Safety
+///
+/// `lhs.len()` MUST equal `a.len()`.
+///
+/// In debug mode, panics if the condition of use is violated. In release, may
+/// panic or trigger UB if the condition of use is violated.
+#[doc = crate::algorithms::unstable_warning!()]
 /// $$
 /// \begin{aligned}
 /// \mathsf{lhs'} &= \mod{\mathsf{lhs} - \mathsf{a} ⋅ \mathsf{b}}_{2^{64⋅N}}
-/// \\\\ \mathsf{borrow} &= \floor{\frac{\mathsf{a} ⋅ \mathsf{b} -
+/// \\\\ \mathsf{borrow} &= \ceil{\frac{\mathsf{a} ⋅ \mathsf{b} -
 /// \mathsf{lhs}}{2^{64⋅N}}} \end{aligned}
 /// $$
 // OPT: `carry` and `borrow` can probably be merged into a single var.
 #[inline(always)]
-pub const fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
+pub const unsafe fn submul_nx1(lhs: &mut [u64], a: &[u64], b: u64) -> u64 {
     assume!(lhs.len() == a.len());
     let mut carry = 0;
     let mut borrow = false;
@@ -277,7 +289,8 @@ mod tests {
             18362433840513668572,
         ];
         let b = 17275533833223164845;
-        let borrow = submul_nx1(&mut lhs, &a, b);
+        // SAFETY: `lhs` and `a` are both length 4.
+        let borrow = unsafe { submul_nx1(&mut lhs, &a, b) };
         assert_eq!(lhs, [
             2427453526388035261,
             7389014268281543265,
