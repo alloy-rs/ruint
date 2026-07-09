@@ -43,19 +43,15 @@ impl<const BITS: usize, const LIMBS: usize> Ord for Uint<BITS, LIMBS> {
     }
 }
 
+// On riscv the derived `PartialEq` (a `[u64; LIMBS]` array comparison) lowers
+// to a `bcmp`/`memcmp` libcall, whose call overhead dwarfs the comparison
+// itself — these targets have no inline-memcmp expansion. Open-code a
+// branchless limb compare there; all other targets keep the derive, which LLVM
+// already lowers optimally.
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 impl<const BITS: usize, const LIMBS: usize> PartialEq for Uint<BITS, LIMBS> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        as_primitives!(self, other; {
-            u64(x, y) => return x == y,
-            u128(x, y) => return x == y,
-        });
-        // Open-coded rather than derived: deriving `PartialEq` compares the
-        // `[u64; LIMBS]` limb array, which LLVM lowers to a `bcmp`/`memcmp`
-        // libcall on targets without inline memcmp expansion (rv32/rv64
-        // embedded, zkVM), where the call costs far more than the comparison.
-        // The branchless accumulate-then-test form vectorizes to the same code
-        // as the derive on x86/aarch64 while avoiding the libcall elsewhere.
         let a = self.as_limbs();
         let b = other.as_limbs();
         let mut acc = 0;
@@ -125,22 +121,26 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        as_primitives!(self; {
-            u64(x) => return x == 0,
-            u128(x) => return x == 0,
-        });
-        // Accumulate all limbs rather than `*self == Self::ZERO`, which would
-        // materialize a zero value on the stack just to compare against it.
-        let mut acc = 0;
-        let mut i = 0;
-        while i < LIMBS {
-            acc |= self.limbs[i];
-            i += 1;
+        if cfg!(any(target_arch = "riscv32", target_arch = "riscv64")) {
+            // On riscv, comparing against a materialized `Self::ZERO` becomes a
+            // `bcmp`/`memcmp` libcall; OR-accumulating the limbs avoids both the
+            // libcall and the zero temporary.
+            let mut acc = 0;
+            let mut i = 0;
+            while i < LIMBS {
+                acc |= self.limbs[i];
+                i += 1;
+            }
+            acc == 0
+        } else {
+            *self == Self::ZERO
         }
-        acc == 0
     }
 
     /// Returns `true` if the value is zero.
+    ///
+    /// Note that this currently might perform worse than
+    /// [`is_zero`](Self::is_zero).
     #[inline]
     #[must_use]
     pub const fn const_is_zero(&self) -> bool {
@@ -152,6 +152,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     }
 
     /// Returns `true` if `self` equals `other`.
+    ///
+    /// Note that this currently might perform worse than the derived
+    /// `PartialEq` (`==` operator).
     #[inline]
     #[must_use]
     pub const fn const_eq(&self, other: &Self) -> bool {

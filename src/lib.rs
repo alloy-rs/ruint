@@ -145,11 +145,15 @@ impl pu128 {
 ///   requires same-sized arguments and returns a pair of lower and higher bits.
 ///
 /// [std-overflow]: https://doc.rust-lang.org/reference/expressions/operator-expr.html#overflow
-// `PartialEq` is implemented by hand in `cmp.rs` rather than derived: the derive
-// compares the `[u64; LIMBS]` limb array, which LLVM lowers to a `bcmp`/`memcmp`
-// libcall on targets without inline memcmp expansion (rv32/rv64 embedded and zkVM
-// targets), where the call dwarfs the comparison itself.
+// On riscv, `PartialEq` is implemented by hand in `cmp.rs` rather than derived: the
+// derive compares the `[u64; LIMBS]` limb array, which LLVM lowers to a `bcmp`/`memcmp`
+// libcall there (no inline-memcmp expansion), where the call dwarfs the comparison
+// itself.
 #[derive(Clone, Copy, Eq, Hash)]
+#[cfg_attr(
+    not(any(target_arch = "riscv32", target_arch = "riscv64")),
+    derive(PartialEq)
+)]
 #[repr(transparent)]
 pub struct Uint<const BITS: usize, const LIMBS: usize> {
     limbs: [u64; LIMBS],
