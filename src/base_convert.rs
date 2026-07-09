@@ -158,7 +158,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             }
 
             // Add digit to result
-            let overflow = addmul_nx1(&mut result.limbs, power.as_limbs(), digit);
+            // SAFETY: `result.limbs` and `power.as_limbs()` are both `[u64; LIMBS]`.
+            let overflow = unsafe { addmul_nx1(&mut result.limbs, power.as_limbs(), digit) };
             if overflow != 0 || result.limbs[LIMBS - 1] > Self::MASK {
                 return Err(BaseConvertError::Overflow);
             }
@@ -389,6 +390,8 @@ impl<const LIMBS: usize> SpigotBuf<LIMBS> {
     #[inline]
     #[track_caller]
     fn new(limbs: [u64; LIMBS], mut base: u64) -> Self {
+        assert!(base > 1);
+
         // We need to do this so we can guarantee that `buf` is big enough.
         base = crate::utils::max_pow_u64(base);
 
@@ -510,6 +513,22 @@ mod tests {
                 2372330524102404852
             ]
         );
+    }
+
+    #[test]
+    #[should_panic = "assertion failed: base > 1"]
+    fn test_to_base_be_2_base_0_panics() {
+        let _ = Uint::<64, 1>::from(5u64)
+            .to_base_be_2(0)
+            .collect::<Vec<_>>();
+    }
+
+    #[test]
+    #[should_panic = "assertion failed: base > 1"]
+    fn test_to_base_be_2_base_1_panics() {
+        let _ = Uint::<64, 1>::from(5u64)
+            .to_base_be_2(1)
+            .collect::<Vec<_>>();
     }
 
     #[test]
