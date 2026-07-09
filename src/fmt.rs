@@ -137,6 +137,44 @@ impl_fmt_pow2!(fmt::UpperHex; base::Hexadecimal, true);
 
 #[cfg(feature = "alloc")]
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
+    const fn ilog10(mut self) -> usize {
+        if self.is_zero_const() {
+            return 0;
+        }
+
+        let mut chunks = 0;
+        loop {
+            let remainder = self.div_rem_u64(10_000_000_000_000_000_000);
+            chunks += 1;
+            if self.is_zero_const() {
+                return (chunks - 1) * 19 + remainder.ilog10() as usize;
+            }
+        }
+    }
+
+    const fn is_zero_const(&self) -> bool {
+        let mut i = 0;
+        while i < LIMBS {
+            if self.limbs[i] != 0 {
+                return false;
+            }
+            i += 1;
+        }
+        true
+    }
+
+    const fn div_rem_u64(&mut self, divisor: u64) -> u64 {
+        let mut remainder = 0;
+        let mut i = LIMBS;
+        while i > 0 {
+            i -= 1;
+            let value = (remainder << 64) | self.limbs[i] as u128;
+            self.limbs[i] = (value / divisor as u128) as u64;
+            remainder = value % divisor as u128;
+        }
+        remainder as u64
+    }
+
     /// Converts this integer to a decimal string.
     ///
     /// This method intentionally shadows [`ToString::to_string`].
@@ -144,7 +182,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn to_string(&self) -> alloc::string::String {
-        let mut string = alloc::string::String::with_capacity(BITS);
+        let mut string = alloc::string::String::with_capacity(const { Self::MAX.ilog10() + 1 });
         write!(string, "{self}").unwrap();
         string
     }
@@ -250,7 +288,12 @@ mod tests {
     fn test_to_string() {
         let string = Uint::<4096, 64>::ZERO.to_string();
         assert_eq!(string, "0");
-        assert!(string.capacity() >= Uint::<4096, 64>::BITS);
+        assert!(string.capacity() >= 1234);
+        assert_eq!(Uint::<4096, 64>::MAX.ilog10(), 1233);
+
+        let zero = Uint::<0, 0>::ZERO.to_string();
+        assert_eq!(zero, "0");
+        assert!(zero.capacity() >= 1);
     }
 
     #[test]
