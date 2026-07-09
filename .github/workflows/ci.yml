@@ -13,7 +13,7 @@ jobs:
     name: Accept
     runs-on: ubuntu-latest
     if: always()
-    needs: [test, feature-checks, clippy, docs, fmt]
+    needs: [test, wasm, feature-checks, clippy, docs, fmt]
     steps:
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
@@ -64,6 +64,25 @@ jobs:
         run: |
           cargo test --workspace ${{ matrix.flags }} --all-targets -- --nocapture
           cargo test --workspace ${{ matrix.flags }} --doc -- --nocapture
+
+  wasm:
+    name: Wasm
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: taiki-e/install-action@wasmtime
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      # Runs the core `ruint` test suite on a 32-bit-pointer target (catches
+      # pointer-width bugs). The `.cargo/config.toml` runner drives wasmtime.
+      # `--lib` avoids the workspace benches, which need a native harness.
+      - name: Run tests
+        run: cargo test --lib --target wasm32-wasip1 -- --nocapture
 
   feature-checks:
     name: Feature checks

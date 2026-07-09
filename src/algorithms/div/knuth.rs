@@ -13,7 +13,12 @@ use crate::{
 ///
 /// - The highest (most-significant) bit of the divisor MUST be set.
 /// - The `divisor` and `numerator` MUST each be at least two limbs.
-/// - `numerator` MUST contain at at least as many elements as `divisor`.
+/// - `numerator` MUST contain strictly more limbs than `divisor`; the extra
+///   limb(s) hold the quotient. (Equal lengths are NOT permitted.)
+/// - The quotient MUST fit in `numerator.len() - divisor.len()` limbs; that is,
+///   `numerator / divisor < 2^(64 * (numerator.len() - divisor.len()))`.
+///   Equivalently, the two most-significant limbs of `numerator` MUST NOT
+///   exceed the two most-significant limbs of `divisor`.
 ///
 /// In debug mode, panics if any condition of use is violated. In release, may
 /// panic or trigger UB if any condition of use is violated.
@@ -22,7 +27,7 @@ use crate::{
 #[allow(clippy::many_single_char_names)]
 pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
     debug_assert!(divisor.len() >= 2);
-    debug_assert!(numerator.len() >= divisor.len());
+    debug_assert!(numerator.len() > divisor.len());
     debug_assert!(*divisor.last().unwrap() >= (1 << 63));
 
     let numerator = UncheckedSlice::wrap_mut(numerator);
@@ -46,7 +51,8 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
         // Overflow case
         if unlikely(n21 == d) {
             let q = u64::MAX;
-            let _carry = submul_nx1(&mut numerator[j..j + n], divisor, q);
+            // SAFETY: both slices have length `n`.
+            let _carry = unsafe { submul_nx1(&mut numerator[j..j + n], divisor, q) };
             numerator[j + n] = q;
             continue;
         }
@@ -60,7 +66,8 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
         // Subtract the quotient times the divisor from the remainder.
         // We already have the highest two limbs, so we can reduce the
         // computation. We still need to carry propagate into these limbs.
-        let borrow = submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q);
+        // SAFETY: both slices have length `n - 2`.
+        let borrow = unsafe { submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q) };
         let (r, borrow) = r.overflowing_sub(u128::from(borrow));
         numerator[j + n - 2] = DW::low(r);
         numerator[j + n - 1] = DW::high(r);
@@ -158,7 +165,9 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
                 // We already have the highest 128 bit, so we can reduce the
                 // computation. We still need to carry propagate into these limbs.
                 let borrow = if shift == 0 {
-                    let borrow = submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q);
+                    // SAFETY: both slices have length `n - 2`.
+                    let borrow =
+                        unsafe { submul_nx1(&mut numerator[j..j + n - 2], &divisor[..n - 2], q) };
                     let (r, borrow) = r.overflowing_sub(u128::from(borrow));
                     numerator[j + n - 2] = DW::low(r);
                     numerator[j + n - 1] = DW::high(r);
@@ -167,7 +176,8 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
                     // OPT: Can we re-use `r` here somehow? The problem is we can not just
                     // shift the `r` or `borrow` because we need to accurately reproduce
                     // the remainder and carry in the middle of a limb.
-                    let borrow = submul_nx1(&mut numerator[j..j + n], divisor, q);
+                    // SAFETY: both slices have length `n`.
+                    let borrow = unsafe { submul_nx1(&mut numerator[j..j + n], divisor, q) };
                     let n2 = numerator.get(j + n).copied().unwrap_or_default();
                     borrow != n2
                 };
@@ -185,7 +195,8 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
         } else {
             // Overflow case
             let q = u64::MAX;
-            let _carry = submul_nx1(&mut numerator[j..j + n], divisor, q);
+            // SAFETY: both slices have length `n`.
+            let _carry = unsafe { submul_nx1(&mut numerator[j..j + n], divisor, q) };
             q
         };
 
