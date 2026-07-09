@@ -121,7 +121,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         const_range_for!(&b in ref bytes => {
             let digit = match b {
                 b'A'..=b'Z' => b - b'A',
-                b'a'..=b'f' => b - b'a' + 26,
+                b'a'..=b'z' => b - b'a' + 26,
                 b'0'..=b'9' => b - b'0' + 52,
                 b'+' | b'-' => 62,
                 b'/' | b',' | b'_' => 63,
@@ -313,6 +313,7 @@ mod tests {
         type U8 = Uint<8, 1>;
 
         assert_eq!(U8::from_str_radix("Z", 64), Ok(U8::from(25)));
+        assert_eq!(U8::from_str_radix("z", 64), Ok(U8::from(51)));
         assert_eq!(U8::from_str_radix("a", 64), Ok(U8::from(26)));
         assert_eq!(U8::from_str_radix("f", 64), Ok(U8::from(31)));
         assert_eq!(U8::from_str_radix("0", 64), Ok(U8::from(52)));
