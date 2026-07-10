@@ -6,7 +6,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns None if the result would overflow.
     #[inline]
     #[must_use]
-    pub fn checked_pow(self, exp: Self) -> Option<Self> {
+    pub const fn checked_pow(self, exp: Self) -> Option<Self> {
         match self.overflowing_pow(exp) {
             (x, false) => Some(x),
             (_, true) => None,
@@ -22,7 +22,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     #[track_caller]
-    pub fn strict_pow(self, exp: Self) -> Self {
+    pub const fn strict_pow(self, exp: Self) -> Self {
         match self.overflowing_pow(exp) {
             (x, false) => x,
             (_, true) => panic!("attempt to multiply with overflow"),
@@ -64,7 +64,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// ```
     #[inline]
     #[must_use]
-    pub fn overflowing_pow(mut self, mut exp: Self) -> (Self, bool) {
+    pub const fn overflowing_pow(mut self, mut exp: Self) -> (Self, bool) {
         if BITS == 0 {
             return (self, false);
         }
@@ -73,7 +73,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let mut overflow = false;
         let mut base_overflow = false;
         let mut result = Self::ONE;
-        while !exp.is_zero() {
+        while !exp.const_is_zero() {
             // Multiply by base
             if exp.bit(0) {
                 let (r, o) = result.overflowing_mul(self);
@@ -85,7 +85,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             let (s, o) = self.overflowing_mul(self);
             self = s;
             base_overflow |= o;
-            exp >>= 1;
+            exp = exp.wrapping_shr(1);
         }
         (result, overflow)
     }
@@ -93,14 +93,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub fn pow(self, exp: Self) -> Self {
+    pub const fn pow(self, exp: Self) -> Self {
         self.wrapping_pow(exp)
     }
 
     /// Raises self to the power of `exp`, saturating on overflow.
     #[inline]
     #[must_use]
-    pub fn saturating_pow(self, exp: Self) -> Self {
+    pub const fn saturating_pow(self, exp: Self) -> Self {
         match self.overflowing_pow(exp) {
             (x, false) => x,
             (_, true) => Self::MAX,
@@ -110,14 +110,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub fn wrapping_pow(mut self, mut exp: Self) -> Self {
+    pub const fn wrapping_pow(mut self, mut exp: Self) -> Self {
         if BITS == 0 {
             return self;
         }
 
         // Exponentiation by squaring
         let mut result = Self::ONE;
-        while !exp.is_zero() {
+        while !exp.const_is_zero() {
             // Multiply by base
             if exp.bit(0) {
                 result = result.wrapping_mul(self);
@@ -125,7 +125,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
             // Square base
             self = self.wrapping_mul(self);
-            exp >>= 1;
+            exp = exp.wrapping_shr(1);
         }
         result
     }
@@ -199,6 +199,22 @@ mod tests {
     use crate::{const_for, nlimbs};
     use core::iter::repeat_n;
     use proptest::proptest;
+
+    #[test]
+    fn test_const_pow() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            const {
+                assert!(matches!(U::MAX.checked_pow(U::ONE), Some(value) if value.const_eq(&U::MAX)));
+                assert!(U::MAX.strict_pow(U::ONE).const_eq(&U::MAX));
+                assert!(matches!(U::MAX.overflowing_pow(U::ONE), (value, false) if value.const_eq(&U::MAX)));
+                assert!(U::MAX.pow(U::ONE).const_eq(&U::MAX));
+                assert!(U::MAX.saturating_pow(U::ONE).const_eq(&U::MAX));
+                assert!(U::MAX.wrapping_pow(U::ONE).const_eq(&U::MAX));
+            }
+        });
+    }
 
     #[test]
     fn test_pow2_shl() {
