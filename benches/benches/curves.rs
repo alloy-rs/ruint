@@ -5,7 +5,7 @@
 //! pressure, op mix, and memory patterns of real signature/pairing code,
 //! which single-op benches cannot.
 
-use super::fields::{check_field, Fq, BLS12_381_P, SECP256K1_N, SECP256K1_P, U256, U384};
+use super::fields::{BLS12_381_P, Fq, SECP256K1_N, SECP256K1_P, U256, U384, check_field};
 use crate::prelude::*;
 
 const G_X: U256 = uint!(0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798_U256);
@@ -48,7 +48,11 @@ fn jac_double<const BITS: usize, const LIMBS: usize>(
         let t = f.mul(p.y, p.z);
         f.add(t, t)
     };
-    Jac { x: x3, y: y3, z: z3 }
+    Jac {
+        x: x3,
+        y: y3,
+        z: z3,
+    }
 }
 
 /// General addition (EFD add-2007-bl). Requires P ≠ ±Q and both nonzero.
@@ -80,7 +84,11 @@ fn jac_add<const BITS: usize, const LIMBS: usize>(
         f.sub(f.mul(r, f.sub(v, x3)), f.add(t, t))
     };
     let z3 = f.mul(f.sub(f.sub(f.sqr(f.add(p.z, q.z)), z1z1), z2z2), h);
-    Jac { x: x3, y: y3, z: z3 }
+    Jac {
+        x: x3,
+        y: y3,
+        z: z3,
+    }
 }
 
 /// Fp2 = Fp[u]/(u² + 1) multiplication, Karatsuba: 3 muls + 5 add/subs.
@@ -147,7 +155,11 @@ fn to_affine<const BITS: usize, const LIMBS: usize>(
 /// Known-answer checks: a wrong formula or constant panics here.
 fn sanity_checks() {
     let f = check_field("secp256k1_p", SECP256K1_P);
-    let g = Jac { x: f.to_mont(G_X), y: f.to_mont(G_Y), z: f.r1 };
+    let g = Jac {
+        x: f.to_mont(G_X),
+        y: f.to_mont(G_Y),
+        z: f.r1,
+    };
     let g2 = jac_double(&f, g);
     assert_eq!(to_affine(&f, g2), (G2_X, G2_Y), "jac_double: 2G mismatch");
     let g3 = jac_add(&f, g2, g);
@@ -159,13 +171,24 @@ fn sanity_checks() {
         d16 = jac_double(&f, d16);
     }
     let seg = scalar_mul_segment(&f, g, g, 0);
-    assert_eq!(to_affine(&f, seg), to_affine(&f, d16), "scalar_mul_segment: k=0");
+    assert_eq!(
+        to_affine(&f, seg),
+        to_affine(&f, d16),
+        "scalar_mul_segment: k=0"
+    );
 
     // Fp2: (a0 + a1·u)(a0 − a1·u) = a0² + a1², and u·u = −1.
     let f2 = check_field("bls12_381_p", BLS12_381_P);
-    let (a0, a1) = (f2.to_mont(Uint::from(1234u64)), f2.to_mont(Uint::from(5678u64)));
+    let (a0, a1) = (
+        f2.to_mont(Uint::from(1234u64)),
+        f2.to_mont(Uint::from(5678u64)),
+    );
     let conj = fp2_mul(&f2, (a0, a1), (a0, f2.sub(Uint::ZERO, a1)));
-    assert_eq!(conj, (f2.add(f2.sqr(a0), f2.sqr(a1)), Uint::ZERO), "fp2_mul: conjugate");
+    assert_eq!(
+        conj,
+        (f2.add(f2.sqr(a0), f2.sqr(a1)), Uint::ZERO),
+        "fp2_mul: conjugate"
+    );
     let u = (Uint::ZERO, f2.r1);
     assert_eq!(
         fp2_mul(&f2, u, u),
@@ -190,7 +213,11 @@ fn jac_point_strategy<const BITS: usize, const LIMBS: usize>(
     p: Uint<BITS, LIMBS>,
 ) -> impl Strategy<Value = Jac<BITS, LIMBS>> {
     <(Uint<BITS, LIMBS>, Uint<BITS, LIMBS>, Uint<BITS, LIMBS>)>::arbitrary().prop_map(
-        move |(x, y, z)| Jac { x: x.reduce_mod(p), y: y.reduce_mod(p), z: z.reduce_mod(p) },
+        move |(x, y, z)| Jac {
+            x: x.reduce_mod(p),
+            y: y.reduce_mod(p),
+            z: z.reduce_mod(p),
+        },
     )
 }
 
@@ -237,7 +264,11 @@ pub fn group(criterion: &mut Criterion) {
     bench_arbitrary_with(
         criterion,
         "curves/secp256k1/scalar_mul_segment16",
-        (jac_point_strategy(SECP256K1_P), jac_point_strategy(SECP256K1_P), u16::arbitrary()),
+        (
+            jac_point_strategy(SECP256K1_P),
+            jac_point_strategy(SECP256K1_P),
+            u16::arbitrary(),
+        ),
         move |(acc, q, k)| scalar_mul_segment(&f, acc, q, k),
     );
 
@@ -246,11 +277,7 @@ pub fn group(criterion: &mut Criterion) {
     let scalar = move || {
         U256::arbitrary().prop_map(move |x| {
             let x = x.reduce_mod(n);
-            if x.is_zero() {
-                U256::ONE
-            } else {
-                x
-            }
+            if x.is_zero() { U256::ONE } else { x }
         })
     };
     bench_arbitrary_with(
@@ -267,11 +294,7 @@ pub fn group(criterion: &mut Criterion) {
     let nonzero = move || {
         U256::arbitrary().prop_map(move |x| {
             let x = x.reduce_mod(SECP256K1_P);
-            if x.is_zero() {
-                U256::ONE
-            } else {
-                x
-            }
+            if x.is_zero() { U256::ONE } else { x }
         })
     };
     bench_arbitrary_with(

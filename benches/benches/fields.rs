@@ -46,17 +46,24 @@ pub(crate) const CSIDH512_P: U512 =
 /// Montgomery context for a fixed odd prime modulus.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Fq<const BITS: usize, const LIMBS: usize> {
-    pub p: Uint<BITS, LIMBS>,
+    pub p:   Uint<BITS, LIMBS>,
     pub inv: u64,
     /// R mod p, i.e. the Montgomery form of 1.
-    pub r1: Uint<BITS, LIMBS>,
+    pub r1:  Uint<BITS, LIMBS>,
     /// R² mod p.
-    pub r2: Uint<BITS, LIMBS>,
+    pub r2:  Uint<BITS, LIMBS>,
 }
 
+// `to_mont`/`from_mont` are domain conversions on the *argument*; the
+// receiver is the field context, so the self-convention lint does not apply.
+#[allow(clippy::wrong_self_convention)]
 impl<const BITS: usize, const LIMBS: usize> Fq<BITS, LIMBS> {
     pub fn new(p: Uint<BITS, LIMBS>) -> Self {
-        let inv: u64 = U64::wrapping_from(p).inv_ring().unwrap().wrapping_neg().to();
+        let inv: u64 = U64::wrapping_from(p)
+            .inv_ring()
+            .unwrap()
+            .wrapping_neg()
+            .to();
         // R mod p = (2^BITS − 1 mod p) + 1; never wraps to 0 since p ∤ 2^BITS.
         let r1 = (Uint::MAX % p).wrapping_add(Uint::ONE);
         let r2 = r1.mul_mod(r1, p);
@@ -78,11 +85,7 @@ impl<const BITS: usize, const LIMBS: usize> Fq<BITS, LIMBS> {
     pub fn sub(&self, a: Uint<BITS, LIMBS>, b: Uint<BITS, LIMBS>) -> Uint<BITS, LIMBS> {
         // a − b mod p for a, b < p: the wrap of `wrapping_sub` and the +p cancel.
         let d = a.wrapping_sub(b);
-        if a < b {
-            d.wrapping_add(self.p)
-        } else {
-            d
-        }
+        if a < b { d.wrapping_add(self.p) } else { d }
     }
 
     pub fn to_mont(&self, a: Uint<BITS, LIMBS>) -> Uint<BITS, LIMBS> {
@@ -109,17 +112,33 @@ pub(crate) fn check_field<const BITS: usize, const LIMBS: usize>(
 ) -> Fq<BITS, LIMBS> {
     assert!(p.bit(0), "{name}: modulus must be odd");
     let f = Fq::new(p);
-    assert_eq!(f.inv.wrapping_mul(p.as_limbs()[0]), u64::MAX, "{name}: bad Montgomery inv");
+    assert_eq!(
+        f.inv.wrapping_mul(p.as_limbs()[0]),
+        u64::MAX,
+        "{name}: bad Montgomery inv"
+    );
     let a = p.wrapping_sub(Uint::from(5u64));
     let b = (p >> 1usize).wrapping_add(Uint::from(7u64));
-    assert_eq!(f.from_mont(f.to_mont(a)), a, "{name}: Montgomery round-trip");
+    assert_eq!(
+        f.from_mont(f.to_mont(a)),
+        a,
+        "{name}: Montgomery round-trip"
+    );
     assert_eq!(
         f.mul(f.to_mont(a), f.to_mont(b)),
         f.to_mont(a.mul_mod(b, p)),
         "{name}: mul_redc disagrees with mul_mod"
     );
-    assert_eq!(f.sqr(f.to_mont(a)), f.mul(f.to_mont(a), f.to_mont(a)), "{name}: square_redc");
-    assert_eq!(f.mul(f.inv(f.to_mont(b)), f.to_mont(b)), f.r1, "{name}: Montgomery inverse");
+    assert_eq!(
+        f.sqr(f.to_mont(a)),
+        f.mul(f.to_mont(a), f.to_mont(a)),
+        "{name}: square_redc"
+    );
+    assert_eq!(
+        f.mul(f.inv(f.to_mont(b)), f.to_mont(b)),
+        f.r1,
+        "{name}: Montgomery inverse"
+    );
     f
 }
 
@@ -133,18 +152,30 @@ fn bench_field<const BITS: usize, const LIMBS: usize>(
     let reduced = move || Uint::<BITS, LIMBS>::arbitrary().prop_map(move |x| x.reduce_mod(p));
     let pair = move || (reduced(), reduced());
 
-    bench_arbitrary_with(criterion, &format!("fields/{name}/mul_redc"), pair(), move |(a, b)| {
-        f.mul(a, b)
-    });
-    bench_arbitrary_with(criterion, &format!("fields/{name}/square_redc"), reduced(), move |a| {
-        f.sqr(a)
-    });
-    bench_arbitrary_with(criterion, &format!("fields/{name}/add_mod"), pair(), move |(a, b)| {
-        a.add_mod(b, p)
-    });
-    bench_arbitrary_with(criterion, &format!("fields/{name}/inv_mod"), reduced(), move |a| {
-        a.inv_mod(p)
-    });
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/mul_redc"),
+        pair(),
+        move |(a, b)| f.mul(a, b),
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/square_redc"),
+        reduced(),
+        move |a| f.sqr(a),
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/add_mod"),
+        pair(),
+        move |(a, b)| a.add_mod(b, p),
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/inv_mod"),
+        reduced(),
+        move |a| a.inv_mod(p),
+    );
     // Real fixed exponents: Fermat inversion a^(p−2), point-decompression sqrt
     // a^((p+1)/4) (p ≡ 3 mod 4 only), and the RSA verify exponent 65537.
     let fermat = p.wrapping_sub(Uint::from(2u64));
