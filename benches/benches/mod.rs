@@ -4,6 +4,7 @@ mod base_convert;
 mod bits;
 mod cmp;
 mod curves;
+mod distributions;
 mod div;
 mod fields;
 mod fmt;
@@ -33,6 +34,7 @@ pub fn group(c: &mut criterion::Criterion) {
     curves::group(c);
 
     cmp::group(c);
+    distributions::group(c);
 
     base_convert::group(c);
     from::group(c);
