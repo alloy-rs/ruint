@@ -137,13 +137,55 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         });
         equal_count == LIMBS
     }
+
+    /// Returns `true` if `self` equals `other`.
+    ///
+    /// Prototype reformulation of [`const_eq`](Self::const_eq) that compares
+    /// double-word (`u128`) chunks instead of counting equal limbs. LLVM
+    /// lowers this to the same code as the derived `PartialEq` (`==`), while
+    /// the limb-counting loop gets auto-vectorized into a horizontal
+    /// reduction with worse dependent-use latency.
+    #[inline]
+    #[must_use]
+    pub const fn const_eq_dw(&self, other: &Self) -> bool {
+        as_primitives!(self, other; {
+            u64(x, y) => return x == y,
+            u128(x, y) => return x == y,
+        });
+        let mut eq = true;
+        if LIMBS >= 2 {
+            let a = self.as_double_words();
+            let b = other.as_double_words();
+            const_range_for!(i in 0..LIMBS / 2 => {
+                eq &= a[i].get() == b[i].get();
+            });
+        }
+        if LIMBS % 2 == 1 {
+            eq &= self.limbs[LIMBS - 1] == other.limbs[LIMBS - 1];
+        }
+        eq
+    }
+
+    /// Returns `true` if the value is zero.
+    ///
+    /// Prototype reformulation of [`const_is_zero`](Self::const_is_zero) on
+    /// top of [`const_eq_dw`](Self::const_eq_dw).
+    #[inline]
+    #[must_use]
+    pub const fn const_is_zero_dw(&self) -> bool {
+        as_primitives!(self; {
+            u64(x) => return x == 0,
+            u128(x) => return x == 0,
+        });
+        self.const_eq_dw(&Self::ZERO)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{Uint, const_for, nlimbs};
     use core::cmp::Ordering;
-    use proptest::{prop_assert_eq, proptest};
+    use proptest::{prop_assert, prop_assert_eq, proptest};
 
     fn reference_cmp<const BITS: usize, const LIMBS: usize>(
         a: &Uint<BITS, LIMBS>,
@@ -192,6 +234,52 @@ mod tests {
             type U = Uint<BITS, LIMBS>;
             proptest!(|(a: U, b: U)| {
                 check_cmp(a, b)?;
+            });
+        });
+    }
+
+    #[test]
+    fn test_const_eq_dw_ctfe() {
+        const OK: bool = {
+            let a = Uint::<256, 4>::from_limbs([1, 2, 3, 4]);
+            let b = Uint::<256, 4>::from_limbs([1, 2, 3, 5]);
+            let c = Uint::<192, 3>::from_limbs([1, 2, 3]);
+            let d = Uint::<192, 3>::from_limbs([1, 2, 4]);
+            a.const_eq_dw(&a)
+                && !a.const_eq_dw(&b)
+                && !a.const_is_zero_dw()
+                && Uint::<256, 4>::ZERO.const_is_zero_dw()
+                && c.const_eq_dw(&c)
+                && !c.const_eq_dw(&d)
+        };
+        const { assert!(OK) };
+    }
+
+    #[test]
+    fn test_const_eq_dw() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            assert!(U::ZERO.const_eq_dw(&U::ZERO));
+            assert!(U::ZERO.const_is_zero_dw());
+            assert!(U::MAX.const_eq_dw(&U::MAX));
+            assert_eq!(U::MAX.const_is_zero_dw(), U::MAX.is_zero());
+            proptest!(|(a: U, b: U)| {
+                prop_assert_eq!(a.const_eq_dw(&b), a == b);
+                prop_assert!(a.const_eq_dw(&a));
+                prop_assert_eq!(a.const_is_zero_dw(), a.is_zero());
+            });
+        });
+        // A difference in any single limb must be detected.
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(a: U, limb in 0..LIMBS)| {
+                let mut b = a;
+                // Bit 0 of every limb is always within the mask.
+                unsafe { b.as_limbs_mut()[limb] ^= 1 };
+                prop_assert!(!a.const_eq_dw(&b));
+                prop_assert!(!b.const_eq_dw(&a));
             });
         });
     }
