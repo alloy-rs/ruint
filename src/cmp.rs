@@ -95,20 +95,26 @@ impl_for_primitives!(
     i8, i16, i32, i64, i128, isize,
 );
 
-/// `const_eq` compares double-word chunks up to this many limbs, and falls
-/// back to a limb-counting loop above it. The chunked form lowers to the same
-/// code as the derived `PartialEq` (flag chain on aarch64, `pxor`/`ptest` on
-/// x86-64), but its serial dependency chain loses to LLVM's auto-vectorization
-/// of the counting loop at high limb counts (measured cliff at 24 limbs on
-/// Zen 2, crossover by 64 limbs on Apple M-series).
-const EQ_DW_MAX_LIMBS: usize = 16;
+/// `const_eq` XOR-folds the limbs up to this many limbs, and falls back to a
+/// limb-counting loop above it. LLVM lowers the fold by context: when the
+/// result feeds a dependency chain and the operands live in registers it
+/// stays scalar (`xor`/`or` on x86-64, `ccmp` flags on aarch64), avoiding
+/// the vector round-trip that stalls dependent use (measured 44% faster
+/// per link than the double-word form on Zen 2 at 256 bits); standalone it
+/// re-vectorizes at 8+ limbs (`pxor`/`ptest` on x86-64, NEON on aarch64).
+/// At 4 limbs x86-64 keeps even the standalone form scalar, costing ~0.3 ns
+/// against `ptest` but still beating the derived `PartialEq`. At high limb
+/// counts the serial forms lose to LLVM's auto-vectorization of the counting
+/// loop (measured cliff at 24 limbs on Zen 2, crossover by 64 limbs on Apple
+/// M-series).
+const EQ_FOLD_MAX_LIMBS: usize = 16;
 
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns `true` if the value is zero.
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        if LIMBS <= EQ_DW_MAX_LIMBS {
+        if LIMBS <= EQ_FOLD_MAX_LIMBS {
             self.const_is_zero()
         } else {
             // Comparing against the constant `ZERO` lowers to `bcmp` against
@@ -128,7 +134,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub const fn const_is_zero(&self) -> bool {
-        if LIMBS <= EQ_DW_MAX_LIMBS {
+        if LIMBS <= EQ_FOLD_MAX_LIMBS {
             self.const_eq(&Self::ZERO)
         } else {
             // An OR-fold auto-vectorizes into a plain vector reduction with
@@ -155,19 +161,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             u64(x, y) => return x == y,
             u128(x, y) => return x == y,
         });
-        if LIMBS <= EQ_DW_MAX_LIMBS {
-            let mut eq = true;
-            if LIMBS >= 2 {
-                let a = self.as_double_words();
-                let b = other.as_double_words();
-                const_range_for!(i in 0..LIMBS / 2 => {
-                    eq &= a[i].get() == b[i].get();
-                });
-            }
-            if LIMBS % 2 == 1 {
-                eq &= self.limbs[LIMBS - 1] == other.limbs[LIMBS - 1];
-            }
-            eq
+        if LIMBS <= EQ_FOLD_MAX_LIMBS {
+            let a = self.as_limbs();
+            let b = other.as_limbs();
+            let mut acc = 0;
+            const_range_for!(i in 0..LIMBS => {
+                acc |= a[i] ^ b[i];
+            });
+            acc == 0
         } else {
             let a = self.as_limbs();
             let b = other.as_limbs();
