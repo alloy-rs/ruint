@@ -38,6 +38,33 @@ pub fn group(criterion: &mut Criterion) {
         |(a, b)| a == b,
     );
 
+    // const_eq over the same distributions: guards the const-compatible
+    // formulation against distribution-sensitive regressions.
+    bench_arbitrary_with(
+        criterion,
+        "dist/const_eq/equal/256",
+        U256::arbitrary().prop_map(|x| (x, x)),
+        |(a, b)| a.const_eq(&b),
+    );
+    bench_arbitrary_with(
+        criterion,
+        "dist/const_eq/differ_low/256",
+        U256::arbitrary().prop_map(|x| (x, x ^ U256::ONE)),
+        |(a, b)| a.const_eq(&b),
+    );
+    bench_arbitrary_with(
+        criterion,
+        "dist/const_eq/differ_high/256",
+        U256::arbitrary().prop_map(|x| (x, x ^ (U256::ONE << 255))),
+        |(a, b)| a.const_eq(&b),
+    );
+    bench_arbitrary_with(
+        criterion,
+        "dist/const_eq/mixed50/256",
+        <(U256, bool)>::arbitrary().prop_map(|(x, e)| if e { (x, x) } else { (x, x ^ U256::ONE) }),
+        |(a, b)| a.const_eq(&b),
+    );
+
     // is_zero: mostly-nonzero stream with 10% zeros (flag-checking pattern).
     bench_arbitrary_with(
         criterion,

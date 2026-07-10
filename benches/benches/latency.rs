@@ -42,30 +42,8 @@ pub fn group(criterion: &mut Criterion) {
     // Comparison ops: the boolean result feeds the next value, modeling
     // compare-then-act code. The +1/+2 depends on the comparison, so the
     // dependency is enforced without black_box.
-    bench_arbitrary_with(
-        criterion,
-        "chained/eq/256",
-        <(U256, U256)>::arbitrary(),
-        |(mut x, y)| {
-            for _ in 0..CHAIN {
-                let e = (x == y) as u64;
-                x = x.wrapping_add(U256::from(e + 1));
-            }
-            x
-        },
-    );
-    bench_arbitrary_with(
-        criterion,
-        "chained/is_zero/256",
-        U256::arbitrary(),
-        |mut x| {
-            for _ in 0..CHAIN {
-                let z = x.is_zero() as u64;
-                x = x.wrapping_add(U256::from(z + 1));
-            }
-            x
-        },
-    );
+    chained_cmp::<256, 4>(criterion);
+    chained_cmp::<512, 8>(criterion);
 
     // Montgomery kernels: x = f(x, y) is exactly the pow_mod inner loop.
     chained_redc(criterion, "secp256k1_p", SECP256K1_P);
@@ -79,6 +57,58 @@ pub fn group(criterion: &mut Criterion) {
         move |(mut x, y)| {
             for _ in 0..CHAIN {
                 x = x.add_mod(y, p);
+            }
+            x
+        },
+    );
+}
+
+fn chained_cmp<const BITS: usize, const LIMBS: usize>(criterion: &mut Criterion) {
+    type U<const BITS: usize, const LIMBS: usize> = Uint<BITS, LIMBS>;
+    bench_arbitrary_with(
+        criterion,
+        &format!("chained/eq/{BITS}"),
+        <(U<BITS, LIMBS>, U<BITS, LIMBS>)>::arbitrary(),
+        |(mut x, y)| {
+            for _ in 0..CHAIN {
+                let e = (x == y) as u64;
+                x = x.wrapping_add(U::from(e + 1));
+            }
+            x
+        },
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("chained/const_eq/{BITS}"),
+        <(U<BITS, LIMBS>, U<BITS, LIMBS>)>::arbitrary(),
+        |(mut x, y)| {
+            for _ in 0..CHAIN {
+                let e = x.const_eq(&y) as u64;
+                x = x.wrapping_add(U::from(e + 1));
+            }
+            x
+        },
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("chained/is_zero/{BITS}"),
+        U::<BITS, LIMBS>::arbitrary(),
+        |mut x| {
+            for _ in 0..CHAIN {
+                let z = x.is_zero() as u64;
+                x = x.wrapping_add(U::from(z + 1));
+            }
+            x
+        },
+    );
+    bench_arbitrary_with(
+        criterion,
+        &format!("chained/const_is_zero/{BITS}"),
+        U::<BITS, LIMBS>::arbitrary(),
+        |mut x| {
+            for _ in 0..CHAIN {
+                let z = x.const_is_zero() as u64;
+                x = x.wrapping_add(U::from(z + 1));
             }
             x
         },
