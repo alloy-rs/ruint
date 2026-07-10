@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Run the core test suite on `wasm32-wasip1` in CI to catch 32-bit pointer-width bugs ([#609])
-- Make `reverse_bits`, `most_significant_bits`, `inv_ring`, `checked_pow`, `strict_pow`, `overflowing_pow`, `pow`, `saturating_pow`, `wrapping_pow`, `from_limbs_slice`, `checked_from_limbs_slice`, `wrapping_from_limbs_slice`, `overflowing_from_limbs_slice`, `saturating_from_limbs_slice`, `from_uint`, and `checked_from_uint` `const`.
+- Make `reverse_bits`, `most_significant_bits`, `inv_ring`, `checked_pow`, `strict_pow`, `overflowing_pow`, `pow`, `saturating_pow`, `wrapping_pow`, `from_limbs_slice`, `checked_from_limbs_slice`, `wrapping_from_limbs_slice`, `overflowing_from_limbs_slice`, `saturating_from_limbs_slice`, `from_uint`, and `checked_from_uint` `const` ([#614]).
 
 ### Fixed
 
@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#610]: https://github.com/alloy-rs/ruint/pull/610
 [#611]: https://github.com/alloy-rs/ruint/pull/611
 [#612]: https://github.com/alloy-rs/ruint/pull/612
+[#614]: https://github.com/alloy-rs/ruint/pull/614
 
 ## [1.19.0] - 2026-07-03
 
