@@ -1,10 +1,10 @@
 #![allow(clippy::missing_inline_in_public_items)] // allow format functions
 
+#[cfg(feature = "alloc")]
+use alloc::{string::String, vec::Vec};
+
 use crate::Uint;
-use core::{
-    fmt::{self, Write},
-    mem::MaybeUninit,
-};
+use core::{fmt, mem::MaybeUninit};
 
 mod base {
     pub(super) trait Base {
@@ -51,34 +51,15 @@ mod base {
 }
 use base::Base;
 
-macro_rules! impl_fmt {
-    ($tr:path; $base:ty, $base_char:literal) => {
-        impl<const BITS: usize, const LIMBS: usize> $tr for Uint<BITS, LIMBS> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                if let Ok(small) = u64::try_from(self) {
-                    return <u64 as $tr>::fmt(&small, f);
-                }
-                if let Ok(small) = u128::try_from(self) {
-                    return <u128 as $tr>::fmt(&small, f);
-                }
+#[cfg(feature = "alloc")]
+#[allow(clippy::cast_possible_truncation)] // The result is at most `bits`.
+const fn decimal_capacity(bits: usize) -> usize {
+    // ceil(log10(2) * 2^32).
+    const LOG10_2_Q32: u128 = 1_292_913_987;
+    const SCALE: u128 = 1 << 32;
 
-                // Use `BITS` for all bases since `generic_const_exprs` is not yet stable.
-                let mut s = StackString::<BITS>::new();
-                let mut first = true;
-                for spigot in self.to_base_be_2(<$base>::MAX) {
-                    write!(
-                        s,
-                        concat!("{:0width$", $base_char, "}"),
-                        spigot,
-                        width = if first { 0 } else { <$base>::WIDTH },
-                    )
-                    .unwrap();
-                    first = false;
-                }
-                f.pad_integral(true, <$base>::PREFIX, s.as_str())
-            }
-        }
-    };
+    let digits = (bits as u128 * LOG10_2_Q32 + SCALE - 1) >> 32;
+    if digits == 0 { 1 } else { digits as usize }
 }
 
 macro_rules! impl_fmt_pow2 {
@@ -128,63 +109,98 @@ impl<const BITS: usize, const LIMBS: usize> fmt::Debug for Uint<BITS, LIMBS> {
     }
 }
 
-impl_fmt!(fmt::Display; base::Decimal, "");
+impl<const BITS: usize, const LIMBS: usize> fmt::Display for Uint<BITS, LIMBS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if BITS == 0 {
+            return f.pad_integral(true, base::Decimal::PREFIX, "0");
+        }
+
+        let mut buffer = StackString::<BITS>::new();
+        self.write_decimal(&mut buffer);
+        f.pad_integral(true, base::Decimal::PREFIX, buffer.as_str())
+    }
+}
 
 impl_fmt_pow2!(fmt::Binary; base::Binary, false);
 impl_fmt_pow2!(fmt::Octal; base::Octal, false);
 impl_fmt_pow2!(fmt::LowerHex; base::Hexadecimal, false);
 impl_fmt_pow2!(fmt::UpperHex; base::Hexadecimal, true);
 
+impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
+    fn write_decimal(&self, buffer: &mut impl DecimalBuffer) {
+        let mut spigots = self.to_base_be_2(base::Decimal::MAX);
+        let Some(first) = spigots.next() else {
+            buffer.push_byte(b'0');
+            return;
+        };
+
+        push_decimal(buffer, first, 0);
+        for spigot in spigots {
+            push_decimal(buffer, spigot, base::Decimal::WIDTH);
+        }
+    }
+}
+
 #[cfg(feature = "alloc")]
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
-    const fn ilog10(mut self) -> usize {
-        if self.is_zero_const() {
-            return 0;
-        }
-
-        let mut chunks = 0;
-        loop {
-            let remainder = self.div_rem_u64(10_000_000_000_000_000_000);
-            chunks += 1;
-            if self.is_zero_const() {
-                return (chunks - 1) * 19 + remainder.ilog10() as usize;
-            }
-        }
-    }
-
-    const fn is_zero_const(&self) -> bool {
-        let mut i = 0;
-        while i < LIMBS {
-            if self.limbs[i] != 0 {
-                return false;
-            }
-            i += 1;
-        }
-        true
-    }
-
-    const fn div_rem_u64(&mut self, divisor: u64) -> u64 {
-        let mut remainder = 0;
-        let mut i = LIMBS;
-        while i > 0 {
-            i -= 1;
-            let value = (remainder << 64) | self.limbs[i] as u128;
-            self.limbs[i] = (value / divisor as u128) as u64;
-            remainder = value % divisor as u128;
-        }
-        remainder as u64
-    }
-
     /// Converts this integer to a decimal string.
     ///
     /// This method intentionally shadows [`ToString::to_string`].
     #[allow(clippy::inherent_to_string_shadow_display)]
     #[inline]
     #[must_use]
-    pub fn to_string(&self) -> alloc::string::String {
-        let mut string = alloc::string::String::with_capacity(const { Self::MAX.ilog10() + 1 });
-        write!(string, "{self}").unwrap();
-        string
+    pub fn to_string(&self) -> String {
+        let mut buffer = Vec::with_capacity(const { decimal_capacity(BITS) });
+        self.write_decimal(&mut buffer);
+        // SAFETY: `write_decimal` only writes ASCII decimal digits.
+        unsafe { String::from_utf8_unchecked(buffer) }
+    }
+}
+
+trait DecimalBuffer {
+    fn len(&self) -> usize;
+    fn push_byte(&mut self, byte: u8);
+    fn set_byte(&mut self, index: usize, byte: u8);
+}
+
+#[cfg(feature = "alloc")]
+impl DecimalBuffer for Vec<u8> {
+    #[inline]
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+
+    #[inline]
+    fn push_byte(&mut self, byte: u8) {
+        self.push(byte);
+    }
+
+    #[inline]
+    fn set_byte(&mut self, index: usize, byte: u8) {
+        self[index] = byte;
+    }
+}
+
+fn push_decimal(buffer: &mut impl DecimalBuffer, mut value: u64, min_width: usize) {
+    let digits = if value == 0 {
+        1
+    } else {
+        value.ilog10() as usize + 1
+    };
+    let width = digits.max(min_width);
+    let start = buffer.len();
+    for _ in 0..width {
+        buffer.push_byte(b'0');
+    }
+
+    let mut i = start + width;
+    loop {
+        i -= 1;
+        buffer.set_byte(i, b'0' + (value % 10) as u8);
+        value /= 10;
+        if value == 0 {
+            break;
+        }
     }
 }
 
@@ -205,9 +221,8 @@ impl<const SIZE: usize> StackString<SIZE> {
 
     #[inline]
     pub(crate) const fn as_str(&self) -> &str {
-        // SAFETY: `buf` is only written to by the `fmt::Write::write_str`
-        // implementation which writes a valid UTF-8 string to `buf` and
-        // correctly sets `len`.
+        // SAFETY: `buf` is only written with valid UTF-8 by `fmt::Write` or
+        // ASCII bytes by `push_byte` and `DecimalBuffer`.
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
@@ -221,6 +236,24 @@ impl<const SIZE: usize> StackString<SIZE> {
         debug_assert!(self.len < SIZE);
         unsafe { self.buf.as_mut_ptr().add(self.len).cast::<u8>().write(b) };
         self.len += 1;
+    }
+}
+
+impl<const SIZE: usize> DecimalBuffer for StackString<SIZE> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    fn push_byte(&mut self, byte: u8) {
+        StackString::push_byte(self, byte);
+    }
+
+    #[inline]
+    fn set_byte(&mut self, index: usize, byte: u8) {
+        debug_assert!(index < self.len);
+        unsafe { self.buf.as_mut_ptr().add(index).cast::<u8>().write(byte) };
     }
 }
 
@@ -289,11 +322,20 @@ mod tests {
         let string = Uint::<4096, 64>::ZERO.to_string();
         assert_eq!(string, "0");
         assert!(string.capacity() >= 1234);
-        assert_eq!(Uint::<4096, 64>::MAX.ilog10(), 1233);
 
         let zero = Uint::<0, 0>::ZERO.to_string();
         assert_eq!(zero, "0");
         assert!(zero.capacity() >= 1);
+
+        assert_eq!(decimal_capacity(0), 1);
+        assert_eq!(decimal_capacity(64), 20);
+        assert_eq!(decimal_capacity(256), 78);
+        assert_eq!(decimal_capacity(4096), 1234);
+
+        proptest!(|(value: u128)| {
+            let n = Uint::<128, 2>::from(value);
+            prop_assert_eq!(n.to_string(), alloc::string::ToString::to_string(&value));
+        });
     }
 
     #[test]
