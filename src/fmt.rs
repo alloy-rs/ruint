@@ -130,7 +130,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     fn write_decimal(&self, buffer: &mut impl DecimalBuffer) {
         let mut spigots = self.to_base_be_2(base::Decimal::MAX);
         let Some(first) = spigots.next() else {
-            buffer.push_byte(b'0');
+            buffer.push_bytes(b"0");
             return;
         };
 
@@ -158,50 +158,30 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 }
 
 trait DecimalBuffer {
-    fn len(&self) -> usize;
-    fn push_byte(&mut self, byte: u8);
-    fn set_byte(&mut self, index: usize, byte: u8);
+    fn push_bytes(&mut self, bytes: &[u8]);
 }
 
 #[cfg(feature = "alloc")]
 impl DecimalBuffer for Vec<u8> {
     #[inline]
-    fn len(&self) -> usize {
-        Vec::len(self)
-    }
-
-    #[inline]
-    fn push_byte(&mut self, byte: u8) {
-        self.push(byte);
-    }
-
-    #[inline]
-    fn set_byte(&mut self, index: usize, byte: u8) {
-        self[index] = byte;
+    fn push_bytes(&mut self, bytes: &[u8]) {
+        self.extend_from_slice(bytes);
     }
 }
 
 fn push_decimal(buffer: &mut impl DecimalBuffer, mut value: u64, min_width: usize) {
-    let digits = if value == 0 {
-        1
-    } else {
-        value.ilog10() as usize + 1
-    };
-    let width = digits.max(min_width);
-    let start = buffer.len();
-    for _ in 0..width {
-        buffer.push_byte(b'0');
-    }
-
-    let mut i = start + width;
+    let mut digits = [b'0'; base::Decimal::WIDTH];
+    let mut i = digits.len();
     loop {
         i -= 1;
-        buffer.set_byte(i, b'0' + (value % 10) as u8);
+        digits[i] = b'0' + (value % 10) as u8;
         value /= 10;
         if value == 0 {
             break;
         }
     }
+    i = i.min(digits.len() - min_width);
+    buffer.push_bytes(&digits[i..]);
 }
 
 /// A stack-allocated buffer that implements [`fmt::Write`].
@@ -237,23 +217,22 @@ impl<const SIZE: usize> StackString<SIZE> {
         unsafe { self.buf.as_mut_ptr().add(self.len).cast::<u8>().write(b) };
         self.len += 1;
     }
+
+    #[inline]
+    fn push_bytes(&mut self, bytes: &[u8]) {
+        debug_assert!(self.len + bytes.len() <= SIZE);
+        unsafe {
+            let dst = self.buf.as_mut_ptr().add(self.len).cast();
+            core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
+        }
+        self.len += bytes.len();
+    }
 }
 
 impl<const SIZE: usize> DecimalBuffer for StackString<SIZE> {
     #[inline]
-    fn len(&self) -> usize {
-        self.len
-    }
-
-    #[inline]
-    fn push_byte(&mut self, byte: u8) {
-        StackString::push_byte(self, byte);
-    }
-
-    #[inline]
-    fn set_byte(&mut self, index: usize, byte: u8) {
-        debug_assert!(index < self.len);
-        unsafe { self.buf.as_mut_ptr().add(index).cast::<u8>().write(byte) };
+    fn push_bytes(&mut self, bytes: &[u8]) {
+        StackString::push_bytes(self, bytes);
     }
 }
 
@@ -262,11 +241,7 @@ impl<const SIZE: usize> fmt::Write for StackString<SIZE> {
         if self.len + s.len() > SIZE {
             return Err(fmt::Error);
         }
-        unsafe {
-            let dst = self.buf.as_mut_ptr().add(self.len).cast();
-            core::ptr::copy_nonoverlapping(s.as_ptr(), dst, s.len());
-        }
-        self.len += s.len();
+        self.push_bytes(s.as_bytes());
         Ok(())
     }
 
