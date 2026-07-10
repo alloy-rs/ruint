@@ -5,7 +5,7 @@
 //! pressure, op mix, and memory patterns of real signature/pairing code,
 //! which single-op benches cannot.
 
-use super::fields::{check_field, Fq, BLS12_381_P, SECP256K1_P, U256};
+use super::fields::{check_field, Fq, BLS12_381_P, SECP256K1_N, SECP256K1_P, U256, U384};
 use crate::prelude::*;
 
 const G_X: U256 = uint!(0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798_U256);
@@ -83,6 +83,56 @@ fn jac_add<const BITS: usize, const LIMBS: usize>(
     Jac { x: x3, y: y3, z: z3 }
 }
 
+/// Fp2 = Fp[u]/(u² + 1) multiplication, Karatsuba: 3 muls + 5 add/subs.
+fn fp2_mul<const BITS: usize, const LIMBS: usize>(
+    f: &Fq<BITS, LIMBS>,
+    a: (Uint<BITS, LIMBS>, Uint<BITS, LIMBS>),
+    b: (Uint<BITS, LIMBS>, Uint<BITS, LIMBS>),
+) -> (Uint<BITS, LIMBS>, Uint<BITS, LIMBS>) {
+    let t0 = f.mul(a.0, b.0);
+    let t1 = f.mul(a.1, b.1);
+    let t2 = f.mul(f.add(a.0, a.1), f.add(b.0, b.1));
+    (f.sub(t0, t1), f.sub(f.sub(t2, t0), t1))
+}
+
+/// 16 double-and-add iterations: the repeating unit of scalar multiplication,
+/// with the real data-dependent branch on scalar bits.
+fn scalar_mul_segment<const BITS: usize, const LIMBS: usize>(
+    f: &Fq<BITS, LIMBS>,
+    mut acc: Jac<BITS, LIMBS>,
+    q: Jac<BITS, LIMBS>,
+    k: u16,
+) -> Jac<BITS, LIMBS> {
+    for i in (0..16).rev() {
+        acc = jac_double(f, acc);
+        if (k >> i) & 1 == 1 {
+            acc = jac_add(f, acc, q);
+        }
+    }
+    acc
+}
+
+/// Batch inversion via Montgomery's trick: N−1 prefix muls, one inv, 2(N−1)
+/// muls back. All values in Montgomery form.
+fn batch_inverse<const BITS: usize, const LIMBS: usize, const N: usize>(
+    f: &Fq<BITS, LIMBS>,
+    xs: [Uint<BITS, LIMBS>; N],
+) -> [Uint<BITS, LIMBS>; N] {
+    let mut prefix = [Uint::ZERO; N];
+    let mut acc = f.r1;
+    for i in 0..N {
+        prefix[i] = acc;
+        acc = f.mul(acc, xs[i]);
+    }
+    let mut inv_acc = f.inv(acc);
+    let mut out = [Uint::ZERO; N];
+    for i in (0..N).rev() {
+        out[i] = f.mul(inv_acc, prefix[i]);
+        inv_acc = f.mul(inv_acc, xs[i]);
+    }
+    out
+}
+
 /// Montgomery-form Jacobian point back to plain affine coordinates.
 fn to_affine<const BITS: usize, const LIMBS: usize>(
     f: &Fq<BITS, LIMBS>,
@@ -102,6 +152,38 @@ fn sanity_checks() {
     assert_eq!(to_affine(&f, g2), (G2_X, G2_Y), "jac_double: 2G mismatch");
     let g3 = jac_add(&f, g2, g);
     assert_eq!(to_affine(&f, g3), (G3_X, G3_Y), "jac_add: 3G mismatch");
+
+    // Scalar segment with k = 0 must equal 16 straight doublings.
+    let mut d16 = g;
+    for _ in 0..16 {
+        d16 = jac_double(&f, d16);
+    }
+    let seg = scalar_mul_segment(&f, g, g, 0);
+    assert_eq!(to_affine(&f, seg), to_affine(&f, d16), "scalar_mul_segment: k=0");
+
+    // Fp2: (a0 + a1·u)(a0 − a1·u) = a0² + a1², and u·u = −1.
+    let f2 = check_field("bls12_381_p", BLS12_381_P);
+    let (a0, a1) = (f2.to_mont(Uint::from(1234u64)), f2.to_mont(Uint::from(5678u64)));
+    let conj = fp2_mul(&f2, (a0, a1), (a0, f2.sub(Uint::ZERO, a1)));
+    assert_eq!(conj, (f2.add(f2.sqr(a0), f2.sqr(a1)), Uint::ZERO), "fp2_mul: conjugate");
+    let u = (Uint::ZERO, f2.r1);
+    assert_eq!(
+        fp2_mul(&f2, u, u),
+        (f2.to_mont(f2.p.wrapping_sub(Uint::ONE)), Uint::ZERO),
+        "fp2_mul: u^2 != -1"
+    );
+
+    // Batch inversion: xᵢ · out[i] == 1 (Montgomery form) for all i.
+    let xs = [
+        f2.to_mont(Uint::from(2u64)),
+        f2.to_mont(Uint::from(3u64)),
+        f2.to_mont(Uint::from(65537u64)),
+        a1,
+    ];
+    let inv = batch_inverse(&f2, xs);
+    for i in 0..xs.len() {
+        assert_eq!(f2.mul(xs[i], inv[i]), f2.r1, "batch_inverse[{i}]");
+    }
 }
 
 fn jac_point_strategy<const BITS: usize, const LIMBS: usize>(
@@ -136,4 +218,70 @@ pub fn group(criterion: &mut Criterion) {
     sanity_checks();
     bench_curve(criterion, "secp256k1", SECP256K1_P);
     bench_curve(criterion, "bls12_381_g1", BLS12_381_P);
+
+    // Fp2 multiplication (BLS12-381).
+    let f381 = Fq::new(BLS12_381_P);
+    let fp2_el = move || {
+        <(U384, U384)>::arbitrary()
+            .prop_map(move |(a, b)| (a.reduce_mod(BLS12_381_P), b.reduce_mod(BLS12_381_P)))
+    };
+    bench_arbitrary_with(
+        criterion,
+        "curves/bls12_381/fp2_mul",
+        (fp2_el(), fp2_el()),
+        move |(a, b)| fp2_mul(&f381, a, b),
+    );
+
+    // Scalar-mul segment (secp256k1): 16 doubles + data-dependent adds.
+    let f = Fq::new(SECP256K1_P);
+    bench_arbitrary_with(
+        criterion,
+        "curves/secp256k1/scalar_mul_segment16",
+        (jac_point_strategy(SECP256K1_P), jac_point_strategy(SECP256K1_P), u16::arbitrary()),
+        move |(acc, q, k)| scalar_mul_segment(&f, acc, q, k),
+    );
+
+    // ECDSA verify scalar prologue: w = s⁻¹ mod n; u1 = z·w; u2 = r·w.
+    let n = SECP256K1_N;
+    let scalar = move || {
+        U256::arbitrary().prop_map(move |x| {
+            let x = x.reduce_mod(n);
+            if x.is_zero() {
+                U256::ONE
+            } else {
+                x
+            }
+        })
+    };
+    bench_arbitrary_with(
+        criterion,
+        "curves/secp256k1/ecdsa_verify_prologue",
+        (scalar(), scalar(), scalar()),
+        move |(z, r, s)| {
+            let w = s.inv_mod(n).unwrap();
+            (z.mul_mod(w, n), r.mul_mod(w, n))
+        },
+    );
+
+    // Batch inversion of 64 elements (Montgomery's trick).
+    let nonzero = move || {
+        U256::arbitrary().prop_map(move |x| {
+            let x = x.reduce_mod(SECP256K1_P);
+            if x.is_zero() {
+                U256::ONE
+            } else {
+                x
+            }
+        })
+    };
+    bench_arbitrary_with(
+        criterion,
+        "curves/secp256k1/batch_inverse64",
+        proptest::collection::vec(nonzero(), 64).prop_map(|v| {
+            let mut arr = [U256::ZERO; 64];
+            arr.copy_from_slice(&v);
+            arr
+        }),
+        move |xs| batch_inverse(&f, xs),
+    );
 }
