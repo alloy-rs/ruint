@@ -257,6 +257,9 @@ mod test {
 
     #[test]
     fn test_square_redc() {
+        // `NON_ZERO` covers N ∈ {1, 2, 3, 4, 6, 8, 64}; 320/448 add the odd
+        // widths 5 and 7 (real triangular structure in the specialized path)
+        // and 576 the first width dispatched to the `mul_redc` fallback.
         const_for!(BITS in NON_ZERO if BITS >= 16 {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint<BITS, LIMBS>;
@@ -272,6 +275,60 @@ mod test {
 
                 prop_assert_eq!(result, expected);
             });
+        });
+        const_for!(BITS in [320, 448, 576] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(mut a: U, mut m: U)| {
+                m |= U::from(1_u64); // Make sure m is odd.
+                a %= m; // Make sure a is less than m.
+                let a = *a.as_limbs();
+                let m = *m.as_limbs();
+                let inv = U64::from(m[0]).inv_ring().unwrap().neg().as_limbs()[0];
+
+                let result = mul_base(square_redc(a, m, inv), m);
+                let expected = modmul(a, a, m);
+
+                prop_assert_eq!(result, expected);
+            });
+        });
+    }
+
+    #[test]
+    fn test_square_redc_carry_saturation() {
+        // The single-word-carry design rests on sums that reach exactly
+        // 2^65 - 1 — the ceiling of a `(u64, bool)` accumulator — in the
+        // doubling pass and the reduction's final add. Saturating them
+        // requires modulus limbs at u64::MAX together with `a` near
+        // `m - 1`, a corner uniform-random moduli cannot reach; pin it
+        // with directed all-ones-shaped moduli at every specialized width
+        // plus the first fallback width.
+        const_for!(BITS in [64, 128, 192, 256, 320, 384, 448, 512, 576] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            // 2^(64N) - 1: every limb saturated.
+            let all_ones = U::MAX;
+            // 2^(64N) - 2^64 + 1: saturated except the bottom limb.
+            let mut low_one = U::MAX;
+            unsafe { low_one.as_limbs_mut()[0] = 1 };
+            // Minimal top limb over saturated low limbs.
+            let mut small_top = U::MAX;
+            unsafe { small_top.as_limbs_mut()[LIMBS - 1] = 1 };
+            for m in [all_ones, low_one, small_top] {
+                let inv = U64::from(m.as_limbs()[0]).inv_ring().unwrap().neg().as_limbs()[0];
+                for a in [
+                    m.wrapping_sub(U::from(1_u64)),
+                    m.wrapping_sub(U::from(2_u64)),
+                    m >> 1,
+                    U::from(1_u64),
+                ] {
+                    let a = *(a % m).as_limbs();
+                    let m = *m.as_limbs();
+                    let squared = square_redc(a, m, inv);
+                    assert_eq!(squared, mul_redc(a, a, m, inv));
+                    assert_eq!(mul_base(squared, m), modmul(a, a, m));
+                }
+            }
         });
     }
 }
