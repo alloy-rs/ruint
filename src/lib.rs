@@ -259,7 +259,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     #[track_caller]
-    pub fn from_limbs_slice(slice: &[u64]) -> Self {
+    pub const fn from_limbs_slice(slice: &[u64]) -> Self {
         match Self::overflowing_from_limbs_slice(slice) {
             (n, false) => n,
             (_, true) => panic!("Value too large for this Uint"),
@@ -270,7 +270,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// if the value is too large for the [`Uint`].
     #[inline]
     #[must_use]
-    pub fn checked_from_limbs_slice(slice: &[u64]) -> Option<Self> {
+    pub const fn checked_from_limbs_slice(slice: &[u64]) -> Option<Self> {
         match Self::overflowing_from_limbs_slice(slice) {
             (n, false) => Some(n),
             (_, true) => None,
@@ -281,7 +281,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// a potentially truncated value.
     #[inline]
     #[must_use]
-    pub fn wrapping_from_limbs_slice(slice: &[u64]) -> Self {
+    pub const fn wrapping_from_limbs_slice(slice: &[u64]) -> Self {
         Self::overflowing_from_limbs_slice(slice).0
     }
 
@@ -290,16 +290,29 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// was truncated.
     #[inline]
     #[must_use]
-    pub fn overflowing_from_limbs_slice(slice: &[u64]) -> (Self, bool) {
+    pub const fn overflowing_from_limbs_slice(slice: &[u64]) -> (Self, bool) {
         if slice.len() < LIMBS {
             let mut limbs = [0; LIMBS];
-            limbs[..slice.len()].copy_from_slice(slice);
+            // SAFETY: `slice` and `limbs` are disjoint, and `limbs` has at
+            // least `slice.len()` elements.
+            unsafe {
+                core::ptr::copy_nonoverlapping(slice.as_ptr(), limbs.as_mut_ptr(), slice.len());
+            }
             (Self::from_limbs(limbs), false)
         } else {
             let (head, tail) = slice.split_at(LIMBS);
             let mut limbs = [0; LIMBS];
-            limbs.copy_from_slice(head);
-            let mut overflow = tail.iter().any(|&limb| limb != 0);
+            // SAFETY: `head` and `limbs` have the same length and are disjoint.
+            unsafe {
+                core::ptr::copy_nonoverlapping(head.as_ptr(), limbs.as_mut_ptr(), LIMBS);
+            }
+            let mut overflow = false;
+            const_range_for!(&limb in ref tail => {
+                if limb != 0 {
+                    overflow = true;
+                    break;
+                }
+            });
             if LIMBS > 0 {
                 overflow |= limbs[LIMBS - 1] > Self::MASK;
                 limbs[LIMBS - 1] &= Self::MASK;
@@ -312,7 +325,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// the maximum value if the value is too large for the [`Uint`].
     #[inline]
     #[must_use]
-    pub fn saturating_from_limbs_slice(slice: &[u64]) -> Self {
+    pub const fn saturating_from_limbs_slice(slice: &[u64]) -> Self {
         match Self::overflowing_from_limbs_slice(slice) {
             (n, false) => n,
             (_, true) => Self::MAX,
@@ -396,6 +409,30 @@ mod test {
             const LIMBS: usize = nlimbs(BITS);
             assert_eq!(Uint::<BITS, LIMBS>::MIN, Uint::<BITS, LIMBS>::ZERO);
             let _ = Uint::<BITS, LIMBS>::MAX;
+        });
+    }
+
+    #[test]
+    fn test_const_from_limbs_slice() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            const {
+                let empty = [];
+                assert!(U::from_limbs_slice(&empty).const_is_zero());
+                assert!(matches!(U::checked_from_limbs_slice(&empty), Some(value) if value.const_is_zero()));
+                assert!(U::wrapping_from_limbs_slice(&empty).const_is_zero());
+
+                let source = [u64::MAX, u64::MAX];
+                let (truncated, overflow) = U::overflowing_from_limbs_slice(&source);
+                assert!(U::wrapping_from_limbs_slice(&source).const_eq(&truncated));
+                let saturated = U::saturating_from_limbs_slice(&source);
+                if overflow {
+                    assert!(saturated.const_eq(&U::MAX));
+                } else {
+                    assert!(saturated.const_eq(&truncated));
+                }
+            }
         });
     }
 }

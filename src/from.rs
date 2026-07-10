@@ -301,7 +301,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[must_use]
     #[track_caller]
     #[deprecated(since = "1.4.0", note = "Use `::from()` instead.")]
-    pub fn from_uint<const BITS_SRC: usize, const LIMBS_SRC: usize>(
+    pub const fn from_uint<const BITS_SRC: usize, const LIMBS_SRC: usize>(
         value: Uint<BITS_SRC, LIMBS_SRC>,
     ) -> Self {
         Self::from_limbs_slice(value.as_limbs())
@@ -311,7 +311,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[doc(hidden)]
     #[must_use]
     #[deprecated(since = "1.4.0", note = "Use `::checked_from()` instead.")]
-    pub fn checked_from_uint<const BITS_SRC: usize, const LIMBS_SRC: usize>(
+    pub const fn checked_from_uint<const BITS_SRC: usize, const LIMBS_SRC: usize>(
         value: Uint<BITS_SRC, LIMBS_SRC>,
     ) -> Option<Self> {
         Self::checked_from_limbs_slice(value.as_limbs())
