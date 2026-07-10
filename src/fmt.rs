@@ -1,10 +1,10 @@
 #![allow(clippy::missing_inline_in_public_items)] // allow format functions
 
-#[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
-
 use crate::Uint;
 use core::{fmt, mem::MaybeUninit};
+
+#[cfg(feature = "alloc")]
+use alloc::{string::String, vec::Vec};
 
 mod base {
     pub(super) trait Base {
