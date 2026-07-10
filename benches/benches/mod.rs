@@ -4,6 +4,7 @@ mod base_convert;
 mod bits;
 mod cmp;
 mod div;
+mod fields;
 mod fmt;
 mod from;
 mod log;
@@ -25,6 +26,7 @@ pub fn group(c: &mut criterion::Criterion) {
     log::group(c);
     root::group(c);
     modular::group(c);
+    fields::group(c);
 
     cmp::group(c);
 
