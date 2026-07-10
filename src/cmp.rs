@@ -95,89 +95,88 @@ impl_for_primitives!(
     i8, i16, i32, i64, i128, isize,
 );
 
+/// `const_eq` compares double-word chunks up to this many limbs, and falls
+/// back to a limb-counting loop above it. The chunked form lowers to the same
+/// code as the derived `PartialEq` (flag chain on aarch64, `pxor`/`ptest` on
+/// x86-64), but its serial dependency chain loses to LLVM's auto-vectorization
+/// of the counting loop at high limb counts (measured cliff at 24 limbs on
+/// Zen 2, crossover by 64 limbs on Apple M-series).
+const EQ_DW_MAX_LIMBS: usize = 16;
+
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns `true` if the value is zero.
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        *self == Self::ZERO
+        if LIMBS <= EQ_DW_MAX_LIMBS {
+            self.const_is_zero()
+        } else {
+            // Comparing against the constant `ZERO` lowers to `bcmp` against
+            // an all-zeros constant, which beats every const-compatible
+            // formulation at high limb counts but is not reachable from
+            // `const fn`.
+            *self == Self::ZERO
+        }
     }
 
     /// Returns `true` if the value is zero.
     ///
-    /// Note that this currently might perform worse than
-    /// [`is_zero`](Self::is_zero).
+    /// This is equivalent to [`is_zero`](Self::is_zero), usable in `const`
+    /// contexts. For more than 16 limbs (1024 bits) this may perform worse
+    /// than [`is_zero`](Self::is_zero), which can compare against the zero
+    /// constant with `memcmp`.
     #[inline]
     #[must_use]
     pub const fn const_is_zero(&self) -> bool {
-        as_primitives!(self; {
-            u64(x) => return x == 0,
-            u128(x) => return x == 0,
-        });
-        self.const_eq(&Self::ZERO)
+        if LIMBS <= EQ_DW_MAX_LIMBS {
+            self.const_eq(&Self::ZERO)
+        } else {
+            // An OR-fold auto-vectorizes into a plain vector reduction with
+            // no comparisons, which wins at high limb counts. Below the
+            // cutoff the same auto-vectorization costs a vector->scalar
+            // domain crossing that `const_eq`'s chunked form avoids.
+            let mut acc = 0u64;
+            const_range_for!(limb in ref self.as_limbs() => {
+                acc |= *limb;
+            });
+            acc == 0
+        }
     }
 
     /// Returns `true` if `self` equals `other`.
     ///
-    /// Note that this currently might perform worse than the derived
-    /// `PartialEq` (`==` operator).
+    /// This is equivalent to the derived `PartialEq` (`==` operator), usable
+    /// in `const` contexts.
     #[inline]
     #[must_use]
     pub const fn const_eq(&self, other: &Self) -> bool {
-        as_primitives!(self, other; {
-            u64(x, y) => return x == y,
-            u128(x, y) => return x == y,
-        });
         // TODO: Replace with `self == other` and deprecate once `PartialEq` is const.
-        let a = self.as_limbs();
-        let b = other.as_limbs();
-        let mut equal_count = 0usize;
-        const_range_for!(i in 0..LIMBS => {
-            equal_count += (a[i] == b[i]) as usize;
-        });
-        equal_count == LIMBS
-    }
-
-    /// Returns `true` if `self` equals `other`.
-    ///
-    /// Prototype reformulation of [`const_eq`](Self::const_eq) that compares
-    /// double-word (`u128`) chunks instead of counting equal limbs. LLVM
-    /// lowers this to the same code as the derived `PartialEq` (`==`), while
-    /// the limb-counting loop gets auto-vectorized into a horizontal
-    /// reduction with worse dependent-use latency.
-    #[inline]
-    #[must_use]
-    pub const fn const_eq_dw(&self, other: &Self) -> bool {
         as_primitives!(self, other; {
             u64(x, y) => return x == y,
             u128(x, y) => return x == y,
         });
-        let mut eq = true;
-        if LIMBS >= 2 {
-            let a = self.as_double_words();
-            let b = other.as_double_words();
-            const_range_for!(i in 0..LIMBS / 2 => {
-                eq &= a[i].get() == b[i].get();
+        if LIMBS <= EQ_DW_MAX_LIMBS {
+            let mut eq = true;
+            if LIMBS >= 2 {
+                let a = self.as_double_words();
+                let b = other.as_double_words();
+                const_range_for!(i in 0..LIMBS / 2 => {
+                    eq &= a[i].get() == b[i].get();
+                });
+            }
+            if LIMBS % 2 == 1 {
+                eq &= self.limbs[LIMBS - 1] == other.limbs[LIMBS - 1];
+            }
+            eq
+        } else {
+            let a = self.as_limbs();
+            let b = other.as_limbs();
+            let mut equal_count = 0usize;
+            const_range_for!(i in 0..LIMBS => {
+                equal_count += (a[i] == b[i]) as usize;
             });
+            equal_count == LIMBS
         }
-        if LIMBS % 2 == 1 {
-            eq &= self.limbs[LIMBS - 1] == other.limbs[LIMBS - 1];
-        }
-        eq
-    }
-
-    /// Returns `true` if the value is zero.
-    ///
-    /// Prototype reformulation of [`const_is_zero`](Self::const_is_zero) on
-    /// top of [`const_eq_dw`](Self::const_eq_dw).
-    #[inline]
-    #[must_use]
-    pub const fn const_is_zero_dw(&self) -> bool {
-        as_primitives!(self; {
-            u64(x) => return x == 0,
-            u128(x) => return x == 0,
-        });
-        self.const_eq_dw(&Self::ZERO)
     }
 }
 
@@ -239,35 +238,35 @@ mod tests {
     }
 
     #[test]
-    fn test_const_eq_dw_ctfe() {
+    fn test_const_eq_ctfe() {
         const OK: bool = {
             let a = Uint::<256, 4>::from_limbs([1, 2, 3, 4]);
             let b = Uint::<256, 4>::from_limbs([1, 2, 3, 5]);
             let c = Uint::<192, 3>::from_limbs([1, 2, 3]);
             let d = Uint::<192, 3>::from_limbs([1, 2, 4]);
-            a.const_eq_dw(&a)
-                && !a.const_eq_dw(&b)
-                && !a.const_is_zero_dw()
-                && Uint::<256, 4>::ZERO.const_is_zero_dw()
-                && c.const_eq_dw(&c)
-                && !c.const_eq_dw(&d)
+            a.const_eq(&a)
+                && !a.const_eq(&b)
+                && !a.const_is_zero()
+                && Uint::<256, 4>::ZERO.const_is_zero()
+                && c.const_eq(&c)
+                && !c.const_eq(&d)
         };
         const { assert!(OK) };
     }
 
     #[test]
-    fn test_const_eq_dw() {
+    fn test_const_eq() {
         const_for!(BITS in SIZES {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint<BITS, LIMBS>;
-            assert!(U::ZERO.const_eq_dw(&U::ZERO));
-            assert!(U::ZERO.const_is_zero_dw());
-            assert!(U::MAX.const_eq_dw(&U::MAX));
-            assert_eq!(U::MAX.const_is_zero_dw(), U::MAX.is_zero());
+            assert!(U::ZERO.const_eq(&U::ZERO));
+            assert!(U::ZERO.const_is_zero());
+            assert!(U::MAX.const_eq(&U::MAX));
+            assert_eq!(U::MAX.const_is_zero(), U::MAX.is_zero());
             proptest!(|(a: U, b: U)| {
-                prop_assert_eq!(a.const_eq_dw(&b), a == b);
-                prop_assert!(a.const_eq_dw(&a));
-                prop_assert_eq!(a.const_is_zero_dw(), a.is_zero());
+                prop_assert_eq!(a.const_eq(&b), a == b);
+                prop_assert!(a.const_eq(&a));
+                prop_assert_eq!(a.const_is_zero(), a.is_zero());
             });
         });
         // A difference in any single limb must be detected.
@@ -278,8 +277,8 @@ mod tests {
                 let mut b = a;
                 // Bit 0 of every limb is always within the mask.
                 unsafe { b.as_limbs_mut()[limb] ^= 1 };
-                prop_assert!(!a.const_eq_dw(&b));
-                prop_assert!(!b.const_eq_dw(&a));
+                prop_assert!(!a.const_eq(&b));
+                prop_assert!(!b.const_eq(&a));
             });
         });
     }
