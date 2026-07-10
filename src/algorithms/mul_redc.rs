@@ -135,7 +135,7 @@ pub fn square_redc<const N: usize>(a: [u64; N], modulus: [u64; N], inv: u64) -> 
     // limb i + N + 1 — exactly the next round's final add, so `carry_top`
     // hands it forward.
     let mut carry_top = false;
-    for i in 0..N {
+    for &hi_limb in &hi {
         let m = lo[0].wrapping_mul(inv);
         let (value, mut carry) = carrying_mul_add(m, modulus[0], lo[0], 0);
         debug_assert_eq!(value, 0);
@@ -144,7 +144,7 @@ pub fn square_redc<const N: usize>(a: [u64; N], modulus: [u64; N], inv: u64) -> 
             lo[j - 1] = value;
             carry = next_carry;
         }
-        let (value, next_carry) = carrying_add(hi[i], carry, carry_top);
+        let (value, next_carry) = carrying_add(hi_limb, carry, carry_top);
         lo[N - 1] = value;
         carry_top = next_carry;
     }
