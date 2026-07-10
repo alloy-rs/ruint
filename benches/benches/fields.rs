@@ -123,17 +123,65 @@ pub(crate) fn check_field<const BITS: usize, const LIMBS: usize>(
     f
 }
 
+fn bench_field<const BITS: usize, const LIMBS: usize>(
+    criterion: &mut Criterion,
+    name: &str,
+    p: Uint<BITS, LIMBS>,
+    sqrt: bool,
+) {
+    let f = check_field(name, p);
+    let reduced = move || Uint::<BITS, LIMBS>::arbitrary().prop_map(move |x| x.reduce_mod(p));
+    let pair = move || (reduced(), reduced());
+
+    bench_arbitrary_with(criterion, &format!("fields/{name}/mul_redc"), pair(), move |(a, b)| {
+        f.mul(a, b)
+    });
+    bench_arbitrary_with(criterion, &format!("fields/{name}/square_redc"), reduced(), move |a| {
+        f.sqr(a)
+    });
+    bench_arbitrary_with(criterion, &format!("fields/{name}/add_mod"), pair(), move |(a, b)| {
+        a.add_mod(b, p)
+    });
+    bench_arbitrary_with(criterion, &format!("fields/{name}/inv_mod"), reduced(), move |a| {
+        a.inv_mod(p)
+    });
+    // Real fixed exponents: Fermat inversion a^(p−2), point-decompression sqrt
+    // a^((p+1)/4) (p ≡ 3 mod 4 only), and the RSA verify exponent 65537.
+    let fermat = p.wrapping_sub(Uint::from(2u64));
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/pow_mod/fermat"),
+        reduced(),
+        move |a| a.pow_mod(fermat, p),
+    );
+    if sqrt {
+        let e = (p >> 2usize).wrapping_add(Uint::ONE);
+        bench_arbitrary_with(
+            criterion,
+            &format!("fields/{name}/pow_mod/sqrt"),
+            reduced(),
+            move |a| a.pow_mod(e, p),
+        );
+    }
+    bench_arbitrary_with(
+        criterion,
+        &format!("fields/{name}/pow_mod/e65537"),
+        reduced(),
+        move |a| a.pow_mod(Uint::from(65537u64), p),
+    );
+}
+
 pub fn group(criterion: &mut Criterion) {
-    let _ = criterion;
-    check_field("secp256k1_p", SECP256K1_P);
-    check_field("secp256k1_n", SECP256K1_N);
-    check_field("p256_p", P256_P);
-    check_field("p256_n", P256_N);
-    check_field("bn254_p", BN254_P);
-    check_field("bn254_r", BN254_R);
-    check_field("bls12_381_p", BLS12_381_P);
-    check_field("bls12_381_r", BLS12_381_R);
-    check_field("bls12_377_p", BLS12_377_P);
-    check_field("bls12_377_r", BLS12_377_R);
-    check_field("csidh512_p", CSIDH512_P);
+    bench_field(criterion, "secp256k1_p", SECP256K1_P, true);
+    bench_field(criterion, "secp256k1_n", SECP256K1_N, false);
+    bench_field(criterion, "p256_p", P256_P, true);
+    bench_field(criterion, "p256_n", P256_N, false);
+    bench_field(criterion, "bn254_p", BN254_P, true);
+    bench_field(criterion, "bn254_r", BN254_R, false);
+    bench_field(criterion, "bls12_381_p", BLS12_381_P, true);
+    bench_field(criterion, "bls12_381_r", BLS12_381_R, false);
+    // BLS12-377 p ≡ 1 (mod 4): the (p+1)/4 sqrt exponent does not apply.
+    bench_field(criterion, "bls12_377_p", BLS12_377_P, false);
+    bench_field(criterion, "bls12_377_r", BLS12_377_R, false);
+    bench_field(criterion, "csidh512_p", CSIDH512_P, true);
 }
