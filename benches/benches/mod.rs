@@ -3,9 +3,13 @@ mod algorithms;
 mod base_convert;
 mod bits;
 mod cmp;
+mod curves;
+mod distributions;
 mod div;
+mod fields;
 mod fmt;
 mod from;
+mod latency;
 mod log;
 mod modular;
 mod mul;
@@ -25,8 +29,12 @@ pub fn group(c: &mut criterion::Criterion) {
     log::group(c);
     root::group(c);
     modular::group(c);
+    fields::group(c);
+    latency::group(c);
+    curves::group(c);
 
     cmp::group(c);
+    distributions::group(c);
 
     base_convert::group(c);
     from::group(c);

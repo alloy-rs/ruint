@@ -67,60 +67,108 @@ pub fn mul_redc<const N: usize>(a: [u64; N], b: [u64; N], modulus: [u64; N], inv
 /// Requires that `a` is less than `modulus`.
 #[inline]
 #[must_use]
-#[allow(clippy::cast_possible_truncation)]
 pub fn square_redc<const N: usize>(a: [u64; N], modulus: [u64; N], inv: u64) -> [u64; N] {
     debug_assert_eq!(inv.wrapping_mul(modulus[0]), u64::MAX);
     debug_assert_eq!(cmp(&a, &modulus), Ordering::Less);
 
-    let mut result = [0; N];
-    let mut carry_outer = 0;
+    // The specialized path below beats the plain multiply only while it
+    // compiles to straight-line code; past 8 limbs the loops no longer
+    // unroll and the multiply's fused inner loop wins (measured on Apple
+    // M-series and AMD Zen 2).
+    if N > 8 {
+        return mul_redc(a, a, modulus, inv);
+    }
+
+    // The 2N-limb square is accumulated in `(lo, hi)`, `lo` holding limbs
+    // 0..N and `hi` limbs N..2N. All loops below run a constant `N`
+    // iterations with the triangular structure expressed as guards, and all
+    // carries fit u64 or bool, so the code fully unrolls and the carries
+    // lower to flag registers. (A single loop with data-dependent trip count
+    // or a two-word carry defeats both.)
+    let mut lo = [0; N];
+    let mut hi = [0; N];
+
+    // Cross products, undoubled: sum of a[i] * a[j] for i < j.
     for i in 0..N {
-        // Add limb product
-        let (value, mut carry_lo) = carrying_mul_add(a[i], a[i], result[i], 0);
-        let mut carry_hi = false;
-        result[i] = value;
-        for j in (i + 1)..N {
-            let (value, next_carry_lo, next_carry_hi) =
-                carrying_double_mul_add(a[i], a[j], result[j], carry_lo, carry_hi);
-            result[j] = value;
-            carry_lo = next_carry_lo;
-            carry_hi = next_carry_hi;
+        let mut carry = 0;
+        for j in 0..N {
+            if j > i {
+                let (value, next_carry) = carrying_mul_add(a[i], a[j], get(&lo, &hi, i + j), carry);
+                set(&mut lo, &mut hi, i + j, value);
+                carry = next_carry;
+            }
         }
-
-        // Add m times modulus to result and shift one limb
-        let m = result[0].wrapping_mul(inv);
-        let (value, mut carry) = carrying_mul_add(m, modulus[0], result[0], 0);
-        debug_assert_eq!(value, 0);
-        for j in 1..N {
-            let (value, next_carry) = carrying_mul_add(modulus[j], m, result[j], carry);
-            result[j - 1] = value;
-            carry = next_carry;
-        }
-
-        // Add carries
-        if modulus[N - 1] >= 0x3fff_ffff_ffff_ffff {
-            let wide = (carry_outer as u128)
-                .wrapping_add(carry_lo as u128)
-                .wrapping_add((carry_hi as u128) << 64)
-                .wrapping_add(carry as u128);
-            result[N - 1] = wide as u64;
-
-            // Note carry_outer can be {0, 1, 2}.
-            carry_outer = (wide >> 64) as u64;
-            debug_assert!(carry_outer <= 2);
-        } else {
-            // `carry_outer` and `carry_hi` are always zero.
-            debug_assert!(!carry_hi);
-            debug_assert_eq!(carry_outer, 0);
-            let (value, carry) = carry_lo.overflowing_add(carry);
-            debug_assert!(!carry);
-            result[N - 1] = value;
+        if i + 1 < N {
+            // Row i ends at limb i + N - 1; its carry lands in fresh limb
+            // i + N. The last row is empty and carries nothing.
+            set(&mut lo, &mut hi, i + N, carry);
         }
     }
 
-    // Compute reduced product.
-    debug_assert!(carry_outer <= 1);
-    reduce1_carry(result, modulus, carry_outer > 0)
+    // Double the cross products (their sum is less than 2^(128N - 1), so
+    // the shift cannot overflow) and add the diagonal squares, in one pass.
+    // Limb pairs (2i, 2i + 1) are contiguous, so a single shift-out bit and
+    // a single carry chain cover the whole sweep.
+    let mut msb = 0;
+    let mut carry = false;
+    for (i, &limb) in a.iter().enumerate() {
+        let (square_lo, square_hi) = carrying_mul_add(limb, limb, 0, 0);
+        let value = get(&lo, &hi, 2 * i);
+        let (doubled, next_msb) = ((value << 1) | msb, value >> 63);
+        let (value, next_carry) = carrying_add(doubled, square_lo, carry);
+        set(&mut lo, &mut hi, 2 * i, value);
+        msb = next_msb;
+        let value = get(&lo, &hi, 2 * i + 1);
+        let (doubled, next_msb) = ((value << 1) | msb, value >> 63);
+        let (value, next_carry) = carrying_add(doubled, square_hi, next_carry);
+        set(&mut lo, &mut hi, 2 * i + 1, value);
+        msb = next_msb;
+        carry = next_carry;
+    }
+    debug_assert_eq!(msb, 0);
+    debug_assert!(!carry);
+
+    // Montgomery reduction, with `lo` as a sliding window: each round clears
+    // the window's bottom limb by adding m * modulus, shifts the window down
+    // one limb, and pulls in the next limb of `hi`. In fixed-index terms,
+    // round i's final add lands at limb i + N, whose carry-out belongs to
+    // limb i + N + 1 — exactly the next round's final add, so `carry_top`
+    // hands it forward.
+    let mut carry_top = false;
+    for &hi_limb in &hi {
+        let m = lo[0].wrapping_mul(inv);
+        let (value, mut carry) = carrying_mul_add(m, modulus[0], lo[0], 0);
+        debug_assert_eq!(value, 0);
+        for j in 1..N {
+            let (value, next_carry) = carrying_mul_add(modulus[j], m, lo[j], carry);
+            lo[j - 1] = value;
+            carry = next_carry;
+        }
+        let (value, next_carry) = carrying_add(hi_limb, carry, carry_top);
+        lo[N - 1] = value;
+        carry_top = next_carry;
+    }
+
+    // The reduced square is a^2 / 2^(64N) + (sum of m_i * modulus) / 2^(64N)
+    // < modulus^2 / 2^(64N) + modulus < 2 * modulus, so one conditional
+    // subtraction (with `carry_top` as the 2^(64N) bit) completes it.
+    reduce1_carry(lo, modulus, carry_top)
+}
+
+/// Reads limb `i` of the 2N-limb value split across `lo` and `hi`.
+#[inline(always)]
+fn get<const N: usize>(lo: &[u64; N], hi: &[u64; N], i: usize) -> u64 {
+    if i < N { lo[i] } else { hi[i - N] }
+}
+
+/// Writes limb `i` of the 2N-limb value split across `lo` and `hi`.
+#[inline(always)]
+fn set<const N: usize>(lo: &mut [u64; N], hi: &mut [u64; N], i: usize, value: u64) {
+    if i < N {
+        lo[i] = value;
+    } else {
+        hi[i - N] = value;
+    }
 }
 
 #[inline]
@@ -151,27 +199,6 @@ fn sub<const N: usize>(lhs: [u64; N], rhs: [u64; N]) -> ([u64; N], bool) {
 #[allow(clippy::cast_possible_truncation)]
 fn carrying_mul_add(lhs: u64, rhs: u64, add: u64, carry: u64) -> (u64, u64) {
     DW::split(DW::muladd2(lhs, rhs, add, carry))
-}
-
-/// Compute `2 * lhs * rhs + add + carry_lo + 2^64 * carry_hi`.
-/// The output can not overflow for any input values.
-#[inline]
-#[must_use]
-#[allow(clippy::cast_possible_truncation)]
-const fn carrying_double_mul_add(
-    lhs: u64,
-    rhs: u64,
-    add: u64,
-    carry_lo: u64,
-    carry_hi: bool,
-) -> (u64, u64, bool) {
-    let wide = (lhs as u128).wrapping_mul(rhs as u128);
-    let (wide, carry_1) = wide.overflowing_add(wide);
-    let carries = (add as u128)
-        .wrapping_add(carry_lo as u128)
-        .wrapping_add((carry_hi as u128) << 64);
-    let (wide, carry_2) = wide.overflowing_add(carries);
-    (wide as u64, (wide >> 64) as u64, carry_1 | carry_2)
 }
 
 #[cfg(test)]
@@ -230,6 +257,9 @@ mod test {
 
     #[test]
     fn test_square_redc() {
+        // `NON_ZERO` covers N ∈ {1, 2, 3, 4, 6, 8, 64}; 320/448 add the odd
+        // widths 5 and 7 (real triangular structure in the specialized path)
+        // and 576 the first width dispatched to the `mul_redc` fallback.
         const_for!(BITS in NON_ZERO if BITS >= 16 {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint<BITS, LIMBS>;
@@ -245,6 +275,60 @@ mod test {
 
                 prop_assert_eq!(result, expected);
             });
+        });
+        const_for!(BITS in [320, 448, 576] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(mut a: U, mut m: U)| {
+                m |= U::from(1_u64); // Make sure m is odd.
+                a %= m; // Make sure a is less than m.
+                let a = *a.as_limbs();
+                let m = *m.as_limbs();
+                let inv = U64::from(m[0]).inv_ring().unwrap().neg().as_limbs()[0];
+
+                let result = mul_base(square_redc(a, m, inv), m);
+                let expected = modmul(a, a, m);
+
+                prop_assert_eq!(result, expected);
+            });
+        });
+    }
+
+    #[test]
+    fn test_square_redc_carry_saturation() {
+        // The single-word-carry design rests on sums that reach exactly
+        // 2^65 - 1 — the ceiling of a `(u64, bool)` accumulator — in the
+        // doubling pass and the reduction's final add. Saturating them
+        // requires modulus limbs at u64::MAX together with `a` near
+        // `m - 1`, a corner uniform-random moduli cannot reach; pin it
+        // with directed all-ones-shaped moduli at every specialized width
+        // plus the first fallback width.
+        const_for!(BITS in [64, 128, 192, 256, 320, 384, 448, 512, 576] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            // 2^(64N) - 1: every limb saturated.
+            let all_ones = U::MAX;
+            // 2^(64N) - 2^64 + 1: saturated except the bottom limb.
+            let mut low_one = U::MAX;
+            unsafe { low_one.as_limbs_mut()[0] = 1 };
+            // Minimal top limb over saturated low limbs.
+            let mut small_top = U::MAX;
+            unsafe { small_top.as_limbs_mut()[LIMBS - 1] = 1 };
+            for m in [all_ones, low_one, small_top] {
+                let inv = U64::from(m.as_limbs()[0]).inv_ring().unwrap().neg().as_limbs()[0];
+                for a in [
+                    m.wrapping_sub(U::from(1_u64)),
+                    m.wrapping_sub(U::from(2_u64)),
+                    m >> 1,
+                    U::from(1_u64),
+                ] {
+                    let a = *(a % m).as_limbs();
+                    let m = *m.as_limbs();
+                    let squared = square_redc(a, m, inv);
+                    assert_eq!(squared, mul_redc(a, a, m, inv));
+                    assert_eq!(mul_base(squared, m), modmul(a, a, m));
+                }
+            }
         });
     }
 }

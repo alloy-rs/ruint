@@ -130,6 +130,10 @@ fn manual_batch<T, U>(
 
 #[allow(dead_code)]
 fn get_batch_size(name: &str) -> usize {
+    // Chained and composite-kernel benches do 16-64 core ops per call; batch less.
+    if name.starts_with("chained/") || name.starts_with("curves/") {
+        return 100;
+    }
     let size = name.split('/').flat_map(str::parse::<usize>).max();
     if name.contains("pow") {
         if size >= Some(4096) { 1 } else { 100 }
