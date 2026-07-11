@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Run the core test suite on `wasm32-wasip1` in CI to catch 32-bit pointer-width bugs ([#609])
+- Optimize `const_eq`, `const_is_zero`, and `is_zero` to match or beat the derived `PartialEq` / `== ZERO` forms, especially in dependency-chained use ([#615])
 
 ### Fixed
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#610]: https://github.com/alloy-rs/ruint/pull/610
 [#611]: https://github.com/alloy-rs/ruint/pull/611
 [#612]: https://github.com/alloy-rs/ruint/pull/612
+[#615]: https://github.com/alloy-rs/ruint/pull/615
 
 ## [1.19.0] - 2026-07-03
 

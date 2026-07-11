@@ -134,9 +134,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns `true` if the value is zero.
     ///
     /// This is equivalent to [`is_zero`](Self::is_zero), usable in `const`
-    /// contexts. With more than `EQ_FOLD_MAX_LIMBS` limbs this may perform
-    /// worse than [`is_zero`](Self::is_zero), which can compare against the
-    /// zero constant with `memcmp`.
+    /// contexts. With more than 16 limbs (1024 bits) this may perform worse
+    /// than [`is_zero`](Self::is_zero), which can compare against the zero
+    /// constant with `memcmp`.
     #[inline]
     #[must_use]
     pub const fn const_is_zero(&self) -> bool {
