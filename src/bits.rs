@@ -109,13 +109,19 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// second most-significant bit, etc.
     #[inline]
     #[must_use]
-    pub fn reverse_bits(mut self) -> Self {
-        self.limbs.reverse();
-        for limb in &mut self.limbs {
-            *limb = limb.reverse_bits();
+    pub const fn reverse_bits(mut self) -> Self {
+        const_range_for!(i in 0..LIMBS / 2 => {
+            let j = LIMBS - 1 - i;
+            let limb = self.limbs[i];
+            self.limbs[i] = self.limbs[j].reverse_bits();
+            self.limbs[j] = limb.reverse_bits();
+        });
+        if LIMBS % 2 == 1 {
+            let i = LIMBS / 2;
+            self.limbs[i] = self.limbs[i].reverse_bits();
         }
         if !BITS.is_multiple_of(64) {
-            self >>= 64 - BITS % 64;
+            self = self.wrapping_shr(64 - BITS % 64);
         }
         self
     }
@@ -308,24 +314,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// have leading zeros.
     #[inline]
     #[must_use]
-    pub fn most_significant_bits(&self) -> (u64, usize) {
-        let first_set_limb = self
-            .as_limbs()
-            .iter()
-            .rposition(|&limb| limb != 0)
-            .unwrap_or(0);
-        if first_set_limb == 0 {
-            (self.as_limbs().first().copied().unwrap_or(0), 0)
+    pub const fn most_significant_bits(&self) -> (u64, usize) {
+        let significant_words = self.count_significant_words();
+        if significant_words == 0 {
+            (0, 0)
+        } else if significant_words == 1 {
+            (self.limbs[0], 0)
         } else {
-            let hi = self.as_limbs()[first_set_limb];
-            let lo = self.as_limbs()[first_set_limb - 1];
+            let i = significant_words - 1;
+            let hi = self.limbs[i];
+            let lo = self.limbs[i - 1];
             let leading_zeros = hi.leading_zeros();
             let bits = if leading_zeros > 0 {
                 (hi << leading_zeros) | (lo >> (64 - leading_zeros))
             } else {
                 hi
             };
-            let exponent = first_set_limb * 64 - leading_zeros as usize;
+            let exponent = i * 64 - leading_zeros as usize;
             (bits, exponent)
         }
     }
@@ -1105,6 +1110,30 @@ mod tests {
             if s < 64 {
                 let arr_shifted = ((a.limbs[0] as i64) >> s) as u64;
                 assert_eq!(a.arithmetic_shr(s), Uint::from_limbs([arr_shifted]));
+            }
+        });
+    }
+
+    #[test]
+    #[allow(clippy::absurd_extreme_comparisons)] // Generated code
+    fn test_const_reverse_and_most_significant_bits() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            const {
+                assert!(U::MAX.reverse_bits().const_eq(&U::MAX));
+                let reversed_one = U::ONE.reverse_bits();
+                let expected = if BITS == 0 { U::ZERO } else { U::ONE.wrapping_shl(BITS - 1) };
+                assert!(reversed_one.const_eq(&expected));
+
+                let (bits, exponent) = U::MAX.most_significant_bits();
+                if BITS <= 64 {
+                    assert!(bits == U::MASK);
+                    assert!(exponent == 0);
+                } else {
+                    assert!(bits == u64::MAX);
+                    assert!(exponent == BITS - 64);
+                }
             }
         });
     }

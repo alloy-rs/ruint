@@ -1,5 +1,4 @@
 # See: https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
-edition = "2021"
 # group_imports = "One"
 imports_granularity = "Crate"
 use_field_init_shorthand = true
