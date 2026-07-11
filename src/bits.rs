@@ -443,17 +443,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return (Self::ZERO, false);
         }
-        let Ok(rhs) = u64::try_from(rhs) else {
-            return (Self::ZERO, true);
-        };
-        // Any shift >= BITS shifts the entire value out. Handling it here also
-        // guarantees `rhs < BITS <= usize::MAX`, so the cast below cannot
+        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
+        // so the entire value is shifted out. The conversion is
+        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
         // truncate on 32-bit targets (where `usize` is narrower than `u64`).
-        if rhs >= BITS as u64 {
+        let Ok(rhs) = usize::try_from(rhs) else {
             return (Self::ZERO, !self.const_is_zero());
-        }
-        #[allow(clippy::cast_possible_truncation)]
-        self.overflowing_shl(rhs as usize)
+        };
+        self.overflowing_shl(rhs)
     }
 
     /// Left shift by `rhs` bits.
@@ -584,17 +581,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return (Self::ZERO, false);
         }
-        let Ok(rhs) = u64::try_from(rhs) else {
-            return (Self::ZERO, true);
-        };
-        // Any shift >= BITS shifts the entire value out. Handling it here also
-        // guarantees `rhs < BITS <= usize::MAX`, so the cast below cannot
+        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
+        // so the entire value is shifted out. The conversion is
+        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
         // truncate on 32-bit targets (where `usize` is narrower than `u64`).
-        if rhs >= BITS as u64 {
+        let Ok(rhs) = usize::try_from(rhs) else {
             return (Self::ZERO, !self.const_is_zero());
-        }
-        #[allow(clippy::cast_possible_truncation)]
-        self.overflowing_shr(rhs as usize)
+        };
+        self.overflowing_shr(rhs)
     }
 
     /// Right shift by `rhs` bits.
@@ -1361,7 +1355,7 @@ mod tests {
     }
 
     #[test]
-    fn correctness_8_7_2026_overflowing_shl() {
+    fn regression_overflowing_shl() {
         // limbs entirely shifted out are caught
         let num = Uint::<128, 2>::from_limbs([0, 1]);
         assert_eq!(num.overflowing_shl(64), (Uint::ZERO, true));
@@ -1374,7 +1368,7 @@ mod tests {
     }
 
     #[test]
-    fn correctness_8_7_2026_overflowing_shr() {
+    fn regression_overflowing_shr() {
         // limbs entirely shifted out are caught
         let num = Uint::<128, 2>::from(1u64);
         assert_eq!(num.overflowing_shr(64), (Uint::ZERO, true));
@@ -1382,7 +1376,7 @@ mod tests {
     }
 
     #[test]
-    fn correctness_8_7_2026_wrapping_shifts() {
+    fn regression_wrapping_shifts() {
         // shift amounts >= BITS produce zero; the amount must not be
         // reduced mod 2^32 by the primitive fast paths (LIMBS = 1, 2, 4)
         let huge = 1usize << 32;
@@ -1404,14 +1398,15 @@ mod tests {
     }
 
     #[test]
-    fn correctness_8_7_2026_overflowing_big() {
-        // The `_big` shift helpers take a `Self` shift amount, narrow it to u64,
-        // then cast to usize. On 32-bit targets that cast truncated u64 -> u32,
-        // wrapping shift amounts in [2^32, 2^64) mod 2^32 (audit 1.9): e.g.
-        // `U256::ONE << U256::from(1u64 << 32)` shifted by 0 and returned 1.
-        // The `rhs >= BITS` guard now shifts the whole value out before the
-        // cast, so the result is correct on every pointer width. These
-        // assertions pass on 64-bit hosts and would have failed on wasm32.
+    fn regression_overflowing_big() {
+        // The `_big` shift helpers take a `Self` shift amount and narrowed it
+        // to u64, then cast to usize. On 32-bit targets that cast truncated
+        // u64 -> u32, wrapping shift amounts in [2^32, 2^64) mod 2^32 (audit
+        // 1.9): e.g. `U256::ONE << U256::from(1u64 << 32)` shifted by 0 and
+        // returned 1. The pointer-width-aware `usize::try_from` now shifts the
+        // whole value out instead, so the result is correct on every pointer
+        // width. These assertions pass on 64-bit hosts and would have failed
+        // on wasm32.
         type U = Uint<256, 4>;
 
         // The 1.9 repro amount: 2^32 >= BITS, so the whole value shifts out.
@@ -1434,6 +1429,9 @@ mod tests {
         let over_u64 = U::from_limbs([0, 0, 1, 0]); // 2^128 > u64::MAX
         assert_eq!(U::MAX.overflowing_shl_big(over_u64), (U::ZERO, true));
         assert_eq!(U::MAX.overflowing_shr_big(over_u64), (U::ZERO, true));
+        // ... and zero still reports no overflow there.
+        assert_eq!(U::ZERO.overflowing_shl_big(over_u64), (U::ZERO, false));
+        assert_eq!(U::ZERO.overflowing_shr_big(over_u64), (U::ZERO, false));
 
         // In-range shifts (rhs < BITS) still return the real result.
         assert_eq!(
