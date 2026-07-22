@@ -43,6 +43,27 @@ impl<const BITS: usize, const LIMBS: usize> Ord for Uint<BITS, LIMBS> {
     }
 }
 
+// On riscv the derived `PartialEq` (a `[u64; LIMBS]` array comparison) lowers
+// to a `bcmp`/`memcmp` libcall, whose call overhead dwarfs the comparison
+// itself — these targets have no inline-memcmp expansion. Open-code a
+// branchless limb compare there; all other targets keep the derive, which LLVM
+// already lowers optimally.
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+impl<const BITS: usize, const LIMBS: usize> PartialEq for Uint<BITS, LIMBS> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        let a = self.as_limbs();
+        let b = other.as_limbs();
+        let mut acc = 0;
+        let mut i = 0;
+        while i < LIMBS {
+            acc |= a[i] ^ b[i];
+            i += 1;
+        }
+        acc == 0
+    }
+}
+
 /// Implements `PartialEq` and `PartialOrd` for `Uint` and primitive integers.
 ///
 /// This intentionally does not use `<$t>::try_from` to avoid unnecessary
@@ -100,7 +121,20 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        *self == Self::ZERO
+        if cfg!(any(target_arch = "riscv32", target_arch = "riscv64")) {
+            // On riscv, comparing against a materialized `Self::ZERO` becomes a
+            // `bcmp`/`memcmp` libcall; OR-accumulating the limbs avoids both the
+            // libcall and the zero temporary.
+            let mut acc = 0;
+            let mut i = 0;
+            while i < LIMBS {
+                acc |= self.limbs[i];
+                i += 1;
+            }
+            acc == 0
+        } else {
+            *self == Self::ZERO
+        }
     }
 
     /// Returns `true` if the value is zero.
