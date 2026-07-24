@@ -1388,6 +1388,10 @@ mod tests {
         assert_eq!(Uint::<64, 1>::MAX.wrapping_shr(huge), Uint::ZERO);
         assert_eq!(Uint::<128, 2>::MAX.wrapping_shl(huge), Uint::ZERO);
         assert_eq!(Uint::<256, 4>::MAX.wrapping_shr(huge), Uint::ZERO);
+        // truncating this amount lands back in range (130, cross-term 2), so
+        // it exercises every internal selector of the 256-bit fast path
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shl(huge + 130), Uint::ZERO);
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shr(huge + 130), Uint::ZERO);
         // the generic path (3 limbs) already handles this
         assert_eq!(Uint::<192, 3>::from(1u64).wrapping_shl(huge), Uint::ZERO);
 
