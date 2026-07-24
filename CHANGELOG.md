@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix `overflowing_shl`/`overflowing_shr` overflow-flag false negatives, which also corrected the dependent `checked_*`/`strict_*`/`saturating_*` shifts and `byte()` ([#603])
 - Fix `from_str_radix` rejecting the lowercase digits `g`–`z` in radix 64 ([#605])
 - Reject non-finite `f64` in `TryFrom<f64>` and saturate `Uint`→`f64` conversions at 2^1024 for large `BITS` ([#606])
 - `try_from_be_slice`/`try_from_le_slice` now return `None` instead of panicking for `BITS % 64` in `57..=63` ([#607])
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix incorrect doc comments and formulas in the `add`, `mul`, and `gcd` algorithms ([#611])
 - Mark `addmul_nx1`/`submul_nx1` `unsafe` and close soundness / safety-contract gaps in the unstable `algorithms` module ([#612])
 
+[#603]: https://github.com/alloy-rs/ruint/pull/603
 [#605]: https://github.com/alloy-rs/ruint/pull/605
 [#606]: https://github.com/alloy-rs/ruint/pull/606
 [#607]: https://github.com/alloy-rs/ruint/pull/607

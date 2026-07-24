@@ -107,6 +107,7 @@ macro_rules! const_range_for {
         const_range_for!(@range $p, $start, $end, $x)
     };
     (@range $p:pat, $start:expr, $end:expr, $x:block) => {{
+        #[allow(unused_parens)]
         let mut iter = $start;
         while iter < $end {
             // This mirrors `core::ops::IndexRange::next_unchecked` until const

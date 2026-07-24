@@ -4,6 +4,20 @@ use core::ops::{
     ShrAssign,
 };
 
+/// Saturating `usize` → `u32` cast for shift amounts.
+///
+/// The primitive fast paths (`LIMBS ∈ {1, 2, 4}`) feed `rhs` to
+/// `unbounded_sh*`, which take a `u32`. A plain `rhs as u32` cast reduces shift
+/// amounts `>= 2^32` mod `2^32`, shifting by the wrong amount instead of
+/// shifting the whole value out. Saturating to `u32::MAX` keeps any such shift
+/// `>= BITS`, so `unbounded_sh*` returns 0, matching the generic path.
+/// Branchless, and a no-op the compiler elides on 32-bit targets (where `usize`
+/// cannot exceed `u32::MAX`).
+#[inline(always)]
+const fn shift_amount(rhs: usize) -> u32 {
+    select_unpredictable_u32(rhs > u32::MAX as usize, u32::MAX, rhs as u32)
+}
+
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns whether a specific bit is set.
     ///
@@ -77,6 +91,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         #[cfg(target_endian = "big")]
         #[allow(clippy::cast_possible_truncation)] // intentional
         {
+            assert!(index < Self::BYTES, "index out of bounds");
             (self.limbs[index / 8] >> ((index % 8) * 8)) as u8
         }
     }
@@ -405,11 +420,18 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
+        // check the limbs that are entirely shifted out.
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[i];
             r.limbs[i + limbs] = (x << bits) | carry;
             carry = x.unbounded_shr(64 - bits);
         });
+        // we need to know whether any limb entirely shifted out is non-zero
+        const_range_for!(i in (LIMBS - limbs)..LIMBS => {
+            carry |= self.limbs[i];
+        });
+        // we also need to know if the top limb is dirty before masking
+        carry |= r.maskable_bits();
         (r.masked(), carry != 0)
     }
 
@@ -421,14 +443,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return (Self::ZERO, false);
         }
-        let Ok(rhs) = u64::try_from(rhs) else {
-            return (Self::ZERO, true);
+        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
+        // so the entire value is shifted out. The conversion is
+        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
+        // truncate on 32-bit targets (where `usize` is narrower than `u64`).
+        let Ok(rhs) = usize::try_from(rhs) else {
+            return (Self::ZERO, !self.const_is_zero());
         };
-        // Rationale: if BITS is larger than 2**64 - 1, it means we're running
-        // on a 128-bit platform with 2.3 exabytes of memory. In this case,
-        // the code produces incorrect output.
-        #[allow(clippy::cast_possible_truncation)]
-        self.overflowing_shl(rhs as usize)
+        self.overflowing_shl(rhs)
     }
 
     /// Left shift by `rhs` bits.
@@ -443,18 +465,18 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         as_primitives!(self; {
             u64(x) => {
                 let mut r = Self::ZERO;
-                r.limbs[0] = x.unbounded_shl(rhs as u32);
+                r.limbs[0] = x.unbounded_shl(shift_amount(rhs));
                 return r.masked();
             },
             u128(x) => {
-                let r = x.unbounded_shl(rhs as u32);
+                let r = x.unbounded_shl(shift_amount(rhs));
                 let mut out = Self::ZERO;
                 out.limbs[0] = r as u64;
                 out.limbs[1] = (r >> 64) as u64;
                 return out.masked();
             },
             u256((lo, hi)) => {
-                let rhs = rhs as u32;
+                let rhs = shift_amount(rhs);
                 // Compute as if rhs < 128.
                 let new_lo = lo.unbounded_shl(rhs);
                 let new_hi = hi.unbounded_shl(rhs) | lo.unbounded_shr(128u32.wrapping_sub(rhs));
@@ -538,10 +560,15 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
+        // check the limbs that are entirely shifted out.
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[LIMBS - 1 - i];
             r.limbs[LIMBS - 1 - i - limbs] = (x >> bits) | carry;
             carry = x.unbounded_shl(64 - bits);
+        });
+        // we need to know if any limb entirely shifted out is non-zero
+        const_range_for!(i in 0..limbs => {
+            carry |= self.limbs[i];
         });
         (r, carry != 0)
     }
@@ -554,14 +581,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return (Self::ZERO, false);
         }
-        let Ok(rhs) = u64::try_from(rhs) else {
-            return (Self::ZERO, true);
+        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
+        // so the entire value is shifted out. The conversion is
+        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
+        // truncate on 32-bit targets (where `usize` is narrower than `u64`).
+        let Ok(rhs) = usize::try_from(rhs) else {
+            return (Self::ZERO, !self.const_is_zero());
         };
-        // Rationale: if BITS is larger than 2**64 - 1, it means we're running
-        // on a 128-bit platform with 2.3 exabytes of memory. In this case,
-        // the code produces incorrect output.
-        #[allow(clippy::cast_possible_truncation)]
-        self.overflowing_shr(rhs as usize)
+        self.overflowing_shr(rhs)
     }
 
     /// Right shift by `rhs` bits.
@@ -579,18 +606,18 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         as_primitives!(self; {
             u64(x) => {
                 let mut r = Self::ZERO;
-                r.limbs[0] = x.unbounded_shr(rhs as u32);
+                r.limbs[0] = x.unbounded_shr(shift_amount(rhs));
                 return r;
             },
             u128(x) => {
-                let r = x.unbounded_shr(rhs as u32);
+                let r = x.unbounded_shr(shift_amount(rhs));
                 let mut out = Self::ZERO;
                 out.limbs[0] = r as u64;
                 out.limbs[1] = (r >> 64) as u64;
                 return out;
             },
             u256((lo, hi)) => {
-                let rhs = rhs as u32;
+                let rhs = shift_amount(rhs);
                 // Compute as if rhs < 128.
                 let new_hi = hi.unbounded_shr(rhs);
                 let new_lo = lo.unbounded_shr(rhs) | hi.unbounded_shl(128u32.wrapping_sub(rhs));
@@ -1325,5 +1352,102 @@ mod tests {
     #[should_panic(expected = "attempt to shift right with overflow")]
     fn test_strict_shr_overflow() {
         let _ = crate::aliases::U64::from(1u64).strict_shr(1);
+    }
+
+    #[test]
+    fn regression_overflowing_shl() {
+        // limbs entirely shifted out are caught
+        let num = Uint::<128, 2>::from_limbs([0, 1]);
+        assert_eq!(num.overflowing_shl(64), (Uint::ZERO, true));
+        assert!(num.checked_shl(64).is_none());
+
+        // masked bits are caught
+        let num = Uint::<65, 2>::from_limbs([0, 1]);
+        assert_eq!(num.overflowing_shl(1), (Uint::ZERO, true));
+        assert_eq!(num.overflowing_shl(64), (Uint::ZERO, true));
+    }
+
+    #[test]
+    fn regression_overflowing_shr() {
+        // limbs entirely shifted out are caught
+        let num = Uint::<128, 2>::from(1u64);
+        assert_eq!(num.overflowing_shr(64), (Uint::ZERO, true));
+        assert!(num.checked_shr(64).is_none());
+    }
+
+    // On 32-bit targets `usize` cannot exceed `u32::MAX`, so the truncation
+    // this guards against cannot occur (and `1usize << 32` would not compile).
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn regression_wrapping_shifts() {
+        // shift amounts >= BITS produce zero; the amount must not be
+        // reduced mod 2^32 by the primitive fast paths (LIMBS = 1, 2, 4)
+        let huge = 1usize << 32;
+        assert_eq!(Uint::<64, 1>::from(1u64).wrapping_shl(huge), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::from(1u64).wrapping_shl(huge + 3), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX.wrapping_shr(huge), Uint::ZERO);
+        assert_eq!(Uint::<128, 2>::MAX.wrapping_shl(huge), Uint::ZERO);
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shr(huge), Uint::ZERO);
+        // truncating this amount lands back in range (130, cross-term 2), so
+        // it exercises every internal selector of the 256-bit fast path
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shl(huge + 130), Uint::ZERO);
+        assert_eq!(Uint::<256, 4>::MAX.wrapping_shr(huge + 130), Uint::ZERO);
+        // the generic path (3 limbs) already handles this
+        assert_eq!(Uint::<192, 3>::from(1u64).wrapping_shl(huge), Uint::ZERO);
+
+        // the operators route through wrapping_shl/wrapping_shr
+        assert_eq!(Uint::<64, 1>::from(1u64) << huge, Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX >> huge, Uint::ZERO);
+
+        // arithmetic_shr: fills with the sign bit for huge shift amounts
+        assert_eq!(Uint::<64, 1>::from(5u64).arithmetic_shr(huge), Uint::ZERO);
+        assert_eq!(Uint::<64, 1>::MAX.arithmetic_shr(huge), Uint::<64, 1>::MAX);
+    }
+
+    #[test]
+    fn regression_overflowing_big() {
+        // The `_big` shift helpers take a `Self` shift amount and narrowed it
+        // to u64, then cast to usize. On 32-bit targets that cast truncated
+        // u64 -> u32, wrapping shift amounts in [2^32, 2^64) mod 2^32 (audit
+        // 1.9): e.g. `U256::ONE << U256::from(1u64 << 32)` shifted by 0 and
+        // returned 1. The pointer-width-aware `usize::try_from` now shifts the
+        // whole value out instead, so the result is correct on every pointer
+        // width. These assertions pass on 64-bit hosts and would have failed
+        // on wasm32.
+        type U = Uint<256, 4>;
+
+        // The 1.9 repro amount: 2^32 >= BITS, so the whole value shifts out.
+        let big = U::from(1u64 << 32);
+        assert_eq!(U::ONE.overflowing_shl_big(big), (U::ZERO, true));
+        assert_eq!(U::ONE.overflowing_shr_big(big), (U::ZERO, true));
+        // the operators route through the `_big` helpers
+        assert_eq!(U::ONE << big, U::ZERO);
+        assert_eq!(U::MAX >> big, U::ZERO);
+
+        // A shift amount of exactly BITS still shifts everything out.
+        assert_eq!(U::MAX.overflowing_shl_big(U::from(256)), (U::ZERO, true));
+        assert_eq!(U::MAX.overflowing_shr_big(U::from(256)), (U::ZERO, true));
+
+        // Zero never sets the overflow flag, no matter how large the shift.
+        assert_eq!(U::ZERO.overflowing_shl_big(big), (U::ZERO, false));
+        assert_eq!(U::ZERO.overflowing_shr_big(big), (U::ZERO, false));
+
+        // Shift amounts that exceed u64 take the `try_from` branch.
+        let over_u64 = U::from_limbs([0, 0, 1, 0]); // 2^128 > u64::MAX
+        assert_eq!(U::MAX.overflowing_shl_big(over_u64), (U::ZERO, true));
+        assert_eq!(U::MAX.overflowing_shr_big(over_u64), (U::ZERO, true));
+        // ... and zero still reports no overflow there.
+        assert_eq!(U::ZERO.overflowing_shl_big(over_u64), (U::ZERO, false));
+        assert_eq!(U::ZERO.overflowing_shr_big(over_u64), (U::ZERO, false));
+
+        // In-range shifts (rhs < BITS) still return the real result.
+        assert_eq!(
+            U::ONE.overflowing_shl_big(U::from(8)),
+            (U::from(256), false)
+        );
+        assert_eq!(
+            U::from(256).overflowing_shr_big(U::from(8)),
+            (U::ONE, false)
+        );
     }
 }
