@@ -560,7 +560,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let bits = bits as u32;
 
         let mut carry = 0;
-
+        // check the limbs that are entirely shifted out.
         const_range_for!(i in 0..LIMBS - limbs => {
             let x = self.limbs[LIMBS - 1 - i];
             r.limbs[LIMBS - 1 - i - limbs] = (x >> bits) | carry;
@@ -1375,6 +1375,9 @@ mod tests {
         assert!(num.checked_shr(64).is_none());
     }
 
+    // On 32-bit targets `usize` cannot exceed `u32::MAX`, so the truncation
+    // this guards against cannot occur (and `1usize << 32` would not compile).
+    #[cfg(target_pointer_width = "64")]
     #[test]
     fn regression_wrapping_shifts() {
         // shift amounts >= BITS produce zero; the amount must not be
