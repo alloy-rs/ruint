@@ -29,4 +29,4 @@ jobs:
         with:
           run: cargo codspeed run -p ruint-bench bench
           token: ${{ secrets.CODSPEED_TOKEN }}
-          mode: instrumentation
+          mode: simulation
