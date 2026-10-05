@@ -135,7 +135,7 @@ ark-bn254-04 = { version = "0.4.0", package = "ark-bn254" }
 ark-bn254-05 = { version = "0.5.0", package = "ark-bn254" }
 ark-bn254-06 = { version = "0.6.0", package = "ark-bn254" }
 
-rand-09 = { version = "0.9", package = "rand" }
+rand-09 = { version = "=0.9.5", package = "rand" }
 
 approx = "0.5"
 bincode = "1.3"
@@ -144,7 +144,7 @@ hex-literal = "1.0"
 serde_json = "1.0"
 
 # borsh
-borsh = { version = "1.5", features = ["derive"] }
+borsh = { version = "=1.8.1", features = ["derive"] }
 
 # Dev-dependencies that don't build on wasm targets. Gated out so
 # `cargo test --target wasm32-*` builds the core test suite. `postgres` needs OS
@@ -152,7 +152,46 @@ borsh = { version = "1.5", features = ["derive"] }
 # default `fork`/`timeout` features pull `rusty-fork`/`wait-timeout`, which have
 # no wasm implementation. On native targets we keep `fork` for test isolation.
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-proptest = "1"
+# Every optional dependency MUST have an exact patch pin in dev-dependencies.
+# Add a pin here whenever adding an optional dependency; keep library requirements
+# above flexible for downstream users. These pins also constrain Cargo's wasm
+# resolution, but are native-only to avoid building unused integrations on wasm.
+# borsh and rand-09 are pinned above; proptest is also pinned in the wasm block.
+alloy-rlp = { version = "=0.3.16", default-features = false }
+arbitrary = { version = "=1.4.2", default-features = false }
+ark-ff-03 = { version = "=0.3.0", package = "ark-ff", default-features = false }
+ark-ff-04 = { version = "=0.4.2", package = "ark-ff", default-features = false }
+ark-ff-05 = { version = "=0.5.0", package = "ark-ff", default-features = false }
+ark-ff-06 = { version = "=0.6.0", package = "ark-ff", default-features = false }
+bigdecimal = { version = "=0.4.10", default-features = false }
+bincode-2 = { version = "=2.0.1", package = "bincode", default-features = false }
+bn-rs = "=0.2.4"
+bytemuck = { version = "=1.25.2", default-features = false }
+bytes = "=1.12.1"
+der = { version = "=0.7.10", default-features = false, features = ["alloc"] }
+diesel = "=2.3.13"
+ethereum_ssz = { version = "=0.5.4", default-features = false }
+fastrlp-03 = { version = "=0.3.1", package = "fastrlp", default-features = false, features = ["alloc"] }
+fastrlp-04 = { version = "=0.4.0", package = "fastrlp", default-features = false, features = ["alloc"] }
+num-bigint = { version = "=0.4.8", default-features = false }
+num-integer = { version = "=0.1.47", default-features = false }
+num-traits = { version = "=0.2.19", default-features = false }
+parity-scale-codec = { version = "=3.7.5", default-features = false, features = ["derive", "max-encoded-len"] }
+postgres-types = "=0.2.14"
+primitive-types = { version = "=0.12.2", default-features = false }
+proptest = "=1.11.0"
+pyo3 = { version = "=0.25.1", default-features = false }
+quickcheck = { version = "=1.1.0", default-features = false }
+rand-08 = { version = "=0.8.8", package = "rand", default-features = false }
+rkyv = "=0.8.18"
+rlp = { version = "=0.5.2", default-features = false }
+serde_core = { version = "=1.0.229", default-features = false }
+sqlx-core = "=0.8.6"
+subtle = { version = "=2.6.1", default-features = false }
+thiserror = "=2.0.20"
+valuable = { version = "=0.1.1", default-features = false }
+zeroize = { version = "=1.9.0", default-features = false }
+
 postgres = "0.19"
 # benches only; we still need to include these here to make rust-analyzer work
 arrayvec = "0.7"
@@ -160,7 +199,7 @@ criterion = { version = "4.3", package = "codspeed-criterion-compat" }
 
 # On wasm, use proptest without `fork`/`timeout` (no process spawning there).
 [target.'cfg(target_family = "wasm")'.dev-dependencies]
-proptest = { version = "1", default-features = false, features = ["std"] }
+proptest = { version = "=1.11.0", default-features = false, features = ["std"] }
 
 [features]
 default = ["std"]
