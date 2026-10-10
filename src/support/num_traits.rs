@@ -315,6 +315,16 @@ impl<const BITS: usize, const LIMBS: usize> ToPrimitive for Uint<BITS, LIMBS> {
     fn to_u128(&self) -> Option<u128> {
         self.try_into().ok()
     }
+
+    #[inline(always)]
+    fn to_f32(&self) -> Option<f32> {
+        Some(self.into())
+    }
+
+    #[inline(always)]
+    fn to_f64(&self) -> Option<f64> {
+        Some(self.into())
+    }
 }
 
 impl<const BITS: usize, const LIMBS: usize> FromPrimitive for Uint<BITS, LIMBS> {
@@ -336,6 +346,16 @@ impl<const BITS: usize, const LIMBS: usize> FromPrimitive for Uint<BITS, LIMBS> 
     #[inline(always)]
     fn from_u128(n: u128) -> Option<Self> {
         Self::try_from(n).ok()
+    }
+
+    #[inline]
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    fn from_f64(n: f64) -> Option<Self> {
+        if n > -1.0 && n < 18_446_744_073_709_551_616.0 {
+            Self::try_from(n as u64).ok()
+        } else {
+            Self::try_from(n).ok()
+        }
     }
 }
 
@@ -523,6 +543,37 @@ mod tests {
         );
         assert_impl!(U256, (Pow<U256>));
         assert_impl!(U256, Unsigned);
+    }
+
+    #[test]
+    fn test_to_float() {
+        let n = U256::from(1_u64) << 200;
+        assert_eq!(ToPrimitive::to_f64(&n), Some(2_f64.powi(200)));
+        assert_eq!(ToPrimitive::to_f32(&n), Some(f32::INFINITY));
+        assert_eq!(ToPrimitive::to_f64(&U256::MAX), Some(2_f64.powi(256)));
+        assert_eq!(ToPrimitive::to_f64(&U256::from(12345_u64)), Some(12345.0));
+    }
+
+    #[test]
+    fn test_from_float() {
+        assert_eq!(
+            <U256 as FromPrimitive>::from_f64(2_f64.powi(200)),
+            Some(U256::from(1_u64) << 200)
+        );
+        assert_eq!(
+            <U256 as FromPrimitive>::from_f32(1e30),
+            U256::try_from(1e30_f32).ok()
+        );
+        assert_eq!(
+            <U256 as FromPrimitive>::from_f64(2.9),
+            Some(U256::from(2_u64))
+        );
+        assert_eq!(<U256 as FromPrimitive>::from_f64(-0.5), Some(U256::ZERO));
+        assert_eq!(<U256 as FromPrimitive>::from_f64(-1.0), None);
+        assert_eq!(<U256 as FromPrimitive>::from_f64(f64::NAN), None);
+        assert_eq!(<U256 as FromPrimitive>::from_f64(f64::INFINITY), None);
+        assert_eq!(<U256 as FromPrimitive>::from_f64(2_f64.powi(256)), None);
+        assert_eq!(<U64 as FromPrimitive>::from_f64(2_f64.powi(64)), None);
     }
 
     #[test]
