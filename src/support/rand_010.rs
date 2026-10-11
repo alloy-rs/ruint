@@ -16,10 +16,13 @@ use rand::{
 impl<const BITS: usize, const LIMBS: usize> Distribution<Uint<BITS, LIMBS>> for StandardUniform {
     #[inline]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Uint<BITS, LIMBS> {
-        <Uint<BITS, LIMBS>>::random_with(rng)
+        random_with(rng)
     }
 }
 
+// The inherent `random*` methods defer to `rand-09` or `rand` when enabled, so
+// that enabling `rand-010` never changes their signatures.
+#[cfg(not(any(feature = "rand", feature = "rand-09")))]
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Creates a new [`Uint`] with the default cryptographic random number
     /// generator.
@@ -39,9 +42,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[doc(alias = "random_using")]
     #[must_use]
     pub fn random_with<R: rand::Rng + ?Sized>(rng: &mut R) -> Self {
-        let mut uint = Self::ZERO;
-        uint.randomize_with(rng);
-        uint
+        random_with(rng)
     }
 
     /// Fills this [`Uint`] with the default cryptographic random number
@@ -58,9 +59,26 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[doc(alias = "randomize_using")]
     pub fn randomize_with<R: rand::Rng + ?Sized>(&mut self, rng: &mut R) {
-        rng.fill(&mut self.limbs[..]);
-        self.apply_mask();
+        randomize_with(self, rng);
     }
+}
+
+#[inline]
+fn random_with<const BITS: usize, const LIMBS: usize, R: rand::Rng + ?Sized>(
+    rng: &mut R,
+) -> Uint<BITS, LIMBS> {
+    let mut uint = Uint::ZERO;
+    randomize_with(&mut uint, rng);
+    uint
+}
+
+#[inline]
+fn randomize_with<const BITS: usize, const LIMBS: usize, R: rand::Rng + ?Sized>(
+    uint: &mut Uint<BITS, LIMBS>,
+    rng: &mut R,
+) {
+    rng.fill(&mut uint.limbs[..]);
+    uint.apply_mask();
 }
 
 #[cfg(test)]

@@ -16,11 +16,10 @@ use rand::{
 impl<const BITS: usize, const LIMBS: usize> Distribution<Uint<BITS, LIMBS>> for StandardUniform {
     #[inline]
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Uint<BITS, LIMBS> {
-        random_with(rng)
+        <Uint<BITS, LIMBS>>::random_with(rng)
     }
 }
 
-#[cfg(not(feature = "rand-010"))]
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Creates a new [`Uint`] with the default cryptographic random number
     /// generator.
@@ -40,7 +39,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[doc(alias = "random_using")]
     #[must_use]
     pub fn random_with<R: rand::RngCore + ?Sized>(rng: &mut R) -> Self {
-        random_with(rng)
+        let mut uint = Self::ZERO;
+        uint.randomize_with(rng);
+        uint
     }
 
     /// Fills this [`Uint`] with the default cryptographic random number
@@ -57,26 +58,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[doc(alias = "randomize_using")]
     pub fn randomize_with<R: rand::RngCore + ?Sized>(&mut self, rng: &mut R) {
-        randomize_with(self, rng);
+        rng.fill(&mut self.limbs[..]);
+        self.apply_mask();
     }
-}
-
-#[inline]
-fn random_with<const BITS: usize, const LIMBS: usize, R: rand::RngCore + ?Sized>(
-    rng: &mut R,
-) -> Uint<BITS, LIMBS> {
-    let mut uint = Uint::ZERO;
-    randomize_with(&mut uint, rng);
-    uint
-}
-
-#[inline]
-fn randomize_with<const BITS: usize, const LIMBS: usize, R: rand::RngCore + ?Sized>(
-    uint: &mut Uint<BITS, LIMBS>,
-    rng: &mut R,
-) {
-    rng.fill(&mut uint.limbs[..]);
-    uint.apply_mask();
 }
 
 #[cfg(test)]

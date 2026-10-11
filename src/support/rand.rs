@@ -20,7 +20,7 @@ impl<const BITS: usize, const LIMBS: usize> Distribution<Uint<BITS, LIMBS>> for 
     }
 }
 
-#[cfg(not(any(feature = "rand-09", feature = "rand-010")))]
+#[cfg(not(feature = "rand-09"))]
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Creates a new [`Uint`] with the default cryptographic random number
     /// generator.
