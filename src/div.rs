@@ -214,6 +214,7 @@ mod tests {
                     let (q, r) = n.div_rem(d);
                     assert!(r < d);
                     assert_eq!(q * d + r, n);
+                    assert_eq!(n % d, r);
                 }
             });
         });
