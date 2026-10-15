@@ -82,16 +82,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             let q = &mut self.limbs[0];
             let r = &mut rhs.limbs[0];
             (*q, *r) = algorithms::div::div_1x1(*q, *r);
-        } else if self < rhs {
-            return (Self::ZERO, self);
-        } else if LIMBS != 0 && self.limbs[1..].iter().all(|&x| x == 0) {
-            // `rhs <= self`, so both fit in a limb.
-            (self.limbs[0], rhs.limbs[0]) = algorithms::div::div_1x1(self.limbs[0], rhs.limbs[0]);
-        } else if rhs.is_power_of_two() {
-            return (
-                self >> rhs.trailing_zeros(),
-                self & rhs.wrapping_sub(Self::ONE),
-            );
         } else {
             Self::div_rem_by_ref(&mut self, &mut rhs);
         }
@@ -100,7 +90,31 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
     #[inline(never)]
     pub(crate) fn div_rem_by_ref(numerator: &mut Self, rhs: &mut Self) {
-        algorithms::div::div_inlined(&mut numerator.limbs, &mut rhs.limbs);
+        Self::div_rem_inlined(numerator, rhs);
+    }
+
+    /// Like [`div_rem_by_ref`](Self::div_rem_by_ref), but discards the
+    /// quotient, which lets the compiler skip computing it in the fast paths.
+    #[inline(never)]
+    fn rem_by_ref(mut numerator: Self, rhs: &mut Self) {
+        Self::div_rem_inlined(&mut numerator, rhs);
+    }
+
+    #[inline(always)]
+    fn div_rem_inlined(numerator: &mut Self, rhs: &mut Self) {
+        if *numerator < *rhs {
+            *rhs = core::mem::replace(numerator, Self::ZERO);
+        } else if numerator.limbs[1..].iter().all(|&x| x == 0) {
+            // `rhs <= numerator`, so both fit in a limb.
+            (numerator.limbs[0], rhs.limbs[0]) =
+                algorithms::div::div_1x1(numerator.limbs[0], rhs.limbs[0]);
+        } else if rhs.is_power_of_two() {
+            let remainder = *numerator & rhs.wrapping_sub(Self::ONE);
+            *numerator >>= rhs.trailing_zeros();
+            *rhs = remainder;
+        } else {
+            algorithms::div::div_inlined(&mut numerator.limbs, &mut rhs.limbs);
+        }
     }
 
     /// Computes `self / rhs` rounding down.
@@ -123,8 +137,12 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     #[track_caller]
-    pub fn wrapping_rem(self, rhs: Self) -> Self {
-        self.div_rem(rhs).1
+    pub fn wrapping_rem(self, mut rhs: Self) -> Self {
+        if LIMBS == 1 {
+            return self.div_rem(rhs).1;
+        }
+        Self::rem_by_ref(self, &mut rhs);
+        rhs
     }
 }
 
