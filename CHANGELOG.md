@@ -11,13 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Optimize `add_mod` for operands less than twice the modulus
+- Optimize `add_mod` for operands less than twice the modulus ([#650])
 
 ### Fixed
 
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
+[#650]: https://github.com/alloy-rs/ruint/pull/650
 
 ## [1.20.1] - 2026-09-07
 
