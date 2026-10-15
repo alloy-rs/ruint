@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Optimize `mul_mod` for operands with nonzero high limbs ([#647])
 - Optimize `add_mod` for operands less than twice the modulus
+- Optimize `div_rem`, `/` and `%` for numerators less than the divisor or that fit in a limb, and for power of two divisors
 
 ### Fixed
 

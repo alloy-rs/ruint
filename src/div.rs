@@ -82,6 +82,16 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             let q = &mut self.limbs[0];
             let r = &mut rhs.limbs[0];
             (*q, *r) = algorithms::div::div_1x1(*q, *r);
+        } else if self < rhs {
+            return (Self::ZERO, self);
+        } else if LIMBS != 0 && self.limbs[1..].iter().all(|&x| x == 0) {
+            // `rhs <= self`, so both fit in a limb.
+            (self.limbs[0], rhs.limbs[0]) = algorithms::div::div_1x1(self.limbs[0], rhs.limbs[0]);
+        } else if rhs.is_power_of_two() {
+            return (
+                self >> rhs.trailing_zeros(),
+                self & rhs.wrapping_sub(Self::ONE),
+            );
         } else {
             Self::div_rem_by_ref(&mut self, &mut rhs);
         }
@@ -175,6 +185,18 @@ mod tests {
                 let (q, r) = n.div_rem(d);
                 assert!(r < d);
                 assert_eq!(q * d + r, n);
+            });
+            proptest!(|(n: U, d: U, n_shift in 0..BITS, d_shift in 0..BITS)| {
+                // Vary the operand sizes, and cover power of two divisors.
+                let n = n >> n_shift;
+                for d in [d >> d_shift, U::ONE << d_shift] {
+                    if d.is_zero() {
+                        continue;
+                    }
+                    let (q, r) = n.div_rem(d);
+                    assert!(r < d);
+                    assert_eq!(q * d + r, n);
+                }
             });
         });
     }
