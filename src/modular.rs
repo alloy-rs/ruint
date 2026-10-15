@@ -116,47 +116,30 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return;
         }
 
-        // Fast paths for operands with nonzero high limbs, which is the common
-        // case for field arithmetic, and for a `2^BITS - 1` modulus.
-        let full = LIMBS >= 2
+        // Fast path for operands with nonzero high limbs, which is the common
+        // case for field arithmetic.
+        if LIMBS >= 2
             && self.limbs[LIMBS - 1] != 0
             && rhs.limbs[LIMBS - 1] != 0
-            && modulus.limbs[LIMBS - 1] != 0;
-        if full || BITS.is_multiple_of(64) && *modulus == Self::MAX {
-            // Double-width product plus a spare limb for normalization. All
-            // sizes are known at compile time, which lets the compiler unroll
-            // the loops.
-            #[repr(C)]
-            struct Product<const LIMBS: usize>([u64; LIMBS], [u64; LIMBS], u64);
-            let mut product = Product([0; LIMBS], [0; LIMBS], 0);
-            // SAFETY: `Product` is `repr(C)` and consists of `2 * LIMBS + 1`
-            // `u64`s, so it has no padding.
-            let product = unsafe {
-                core::slice::from_raw_parts_mut((&raw mut product).cast::<u64>(), 2 * LIMBS + 1)
-            };
-            for (j, &b) in rhs.limbs.iter().enumerate() {
-                let mut carry = 0;
-                for (i, &a) in self.limbs.iter().enumerate() {
-                    (product[i + j], carry) = DW::split(DW::muladd2(a, b, carry, product[i + j]));
-                }
-                product[j + LIMBS] = carry;
-            }
-
-            if !full {
-                // The modulus is `2^BITS - 1`, and `2^BITS = 1` modulo it, so
-                // add the high half to the low half with an end-around carry.
-                let lo = Self::from_limbs(product[..LIMBS].try_into().unwrap());
-                let hi = Self::from_limbs(product[LIMBS..2 * LIMBS].try_into().unwrap());
-                let (sum, carry) = lo.overflowing_add(hi);
-                let sum = sum.wrapping_add(Self::from(carry));
-                *modulus = if sum == Self::MAX { Self::ZERO } else { sum };
-                return;
-            }
-
+            && modulus.limbs[LIMBS - 1] != 0
+        {
+            let mut product = Product::new(&self.limbs, &rhs.limbs);
             // SAFETY: The modulus has at least two limbs and a nonzero high
             // limb, and the product has more limbs than the modulus, with a
             // zero high limb.
-            unsafe { algorithms::div::rem_nxm_spare_limb(product, &mut modulus.limbs) };
+            unsafe {
+                algorithms::div::rem_nxm_spare_limb(product.as_mut_slice(), &mut modulus.limbs)
+            };
+            return;
+        }
+
+        // Since `2^BITS = 1 (mod 2^BITS - 1)`, reduce the product by adding its
+        // high half to its low half with an end-around carry.
+        if BITS.is_multiple_of(64) && *modulus == Self::MAX {
+            let Product(lo, hi, _) = Product::new(&self.limbs, &rhs.limbs);
+            let (sum, carry) = Self::from_limbs(lo).overflowing_add(Self::from_limbs(hi));
+            let sum = sum.wrapping_add(Self::from(carry));
+            *modulus = if sum == Self::MAX { Self::ZERO } else { sum };
             return;
         }
 
@@ -271,6 +254,35 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         let result = Self::from_limbs(result);
         debug_assert!(result < modulus);
         result
+    }
+}
+
+/// Double-width product plus a spare limb for normalization.
+#[repr(C)]
+struct Product<const LIMBS: usize>([u64; LIMBS], [u64; LIMBS], u64);
+
+impl<const LIMBS: usize> Product<LIMBS> {
+    /// Fixed-size schoolbook multiplication. All sizes are known at compile
+    /// time, which lets the compiler unroll the loops.
+    #[inline(always)]
+    fn new(a: &[u64; LIMBS], b: &[u64; LIMBS]) -> Self {
+        let mut product = Self([0; LIMBS], [0; LIMBS], 0);
+        let limbs = product.as_mut_slice();
+        for (j, &b) in b.iter().enumerate() {
+            let mut carry = 0;
+            for (i, &a) in a.iter().enumerate() {
+                (limbs[i + j], carry) = DW::split(DW::muladd2(a, b, carry, limbs[i + j]));
+            }
+            limbs[j + LIMBS] = carry;
+        }
+        product
+    }
+
+    #[inline(always)]
+    fn as_mut_slice(&mut self) -> &mut [u64] {
+        // SAFETY: `Self` is `repr(C)` and consists of `2 * LIMBS + 1` `u64`s,
+        // so it has no padding.
+        unsafe { core::slice::from_raw_parts_mut((&raw mut *self).cast::<u64>(), 2 * LIMBS + 1) }
     }
 }
 
