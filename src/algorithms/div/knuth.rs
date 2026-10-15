@@ -86,6 +86,71 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
     }
 }
 
+/// Knuth long division remainder with in-place normalization.
+///
+/// Computes the remainder of `numerator / divisor` and stores it in `divisor`.
+/// The highest limb of `numerator` is spare space for the bits shifted out by
+/// normalization. Normalizing the numerator up front, unlike [`div_nxm`], lets
+/// each step reuse the two high remainder limbs computed with the quotient
+/// limb. `numerator` is clobbered.
+///
+/// # Safety
+///
+/// - `divisor` MUST contain at least two limbs.
+/// - The highest limb of `divisor` MUST be non-zero.
+/// - `numerator` MUST contain more limbs than `divisor`.
+/// - The highest limb of `numerator` MUST be zero.
+///
+/// In debug mode, panics if any condition of use is violated. In release, may
+/// panic or trigger UB if any condition of use is violated.
+#[inline(always)]
+pub(crate) unsafe fn rem_nxm_spare_limb(numerator: &mut [u64], divisor: &mut [u64]) {
+    debug_assert!(divisor.len() >= 2);
+    debug_assert!(numerator.len() > divisor.len());
+    debug_assert_ne!(*divisor.last().unwrap(), 0);
+    debug_assert_eq!(*numerator.last().unwrap(), 0);
+
+    let numerator = UncheckedSlice::wrap_mut(numerator);
+    let divisor = UncheckedSlice::wrap_mut(divisor);
+    let len = numerator.len();
+    let n = divisor.len();
+
+    let shift = divisor[n - 1].leading_zeros();
+    if shift != 0 {
+        for i in (1..n).rev() {
+            divisor[i] = (divisor[i] << shift) | (divisor[i - 1] >> (64 - shift));
+        }
+        divisor[0] <<= shift;
+        for i in (1..len).rev() {
+            numerator[i] = (numerator[i] << shift) | (numerator[i - 1] >> (64 - shift));
+        }
+        numerator[0] <<= shift;
+    }
+
+    // Skip the highest quotient limb if it is zero, which is the case when the
+    // numerator is a product of operands reduced modulo the divisor.
+    let skip = len > n + 1
+        && numerator[len - 1] == 0
+        && DW::join(numerator[len - 2], numerator[len - 3])
+            <= DW::join(divisor[n - 1], divisor[n - 2]);
+
+    // SAFETY: The divisor is normalized, and the numerator has more limbs than
+    // the divisor. The highest numerator limb holds at most `shift` bits, so it
+    // is smaller than the highest divisor limb and the quotient fits. When
+    // skipping, the remaining two highest limbs don't exceed the divisor's.
+    unsafe { div_nxm_normalized(&mut numerator[..len - skip as usize], divisor) };
+
+    // Denormalize the remainder.
+    if shift == 0 {
+        divisor.copy_from_slice(&numerator[..n]);
+    } else {
+        for i in 0..n - 1 {
+            divisor[i] = (numerator[i] >> shift) | (numerator[i + 1] << (64 - shift));
+        }
+        divisor[n - 1] = numerator[n - 1] >> shift;
+    }
+}
+
 /// ⚠️ In-place Knuth long division with implicit normalization and reciprocals.
 /// # Safety
 ///
@@ -538,6 +603,36 @@ mod tests {
             assert_eq!(&numerator[..quotient.len()], quotient);
             assert_eq!(divisor, remainder);
             assert!(numerator[quotient.len()..].iter().all(|&x| x == 0));
+        });
+    }
+
+    #[test]
+    fn test_rem_nxm_spare_limb() {
+        let quotient = collection::vec(num::u64::ANY, 1..10);
+        // Vary the high limb size to cover every normalization shift.
+        let divisor =
+            (collection::vec(num::u64::ANY, 2..10), 0..64_u32).prop_map(|(mut vec, shift)| {
+                let last = vec.last_mut().unwrap();
+                *last = (*last >> shift).max(1);
+                vec
+            });
+        let dr = divisor.prop_flat_map(|divisor| {
+            let d = divisor.clone();
+            let remainder =
+                collection::vec(num::u64::ANY, divisor.len()).prop_map(move |mut vec| {
+                    *vec.last_mut().unwrap() %= d.last().unwrap();
+                    vec
+                });
+            (Just(divisor), remainder)
+        });
+        proptest!(|(quotient in quotient, (mut divisor, remainder) in dr)| {
+            // The highest limb is the spare limb.
+            let mut numerator: Vec<u64> = vec![0; divisor.len() + quotient.len() + 1];
+            numerator[..remainder.len()].copy_from_slice(&remainder);
+            addmul(&mut numerator, quotient.as_slice(), divisor.as_slice());
+
+            unsafe { rem_nxm_spare_limb(numerator.as_mut_slice(), divisor.as_mut_slice()) };
+            assert_eq!(divisor, remainder);
         });
     }
 }
