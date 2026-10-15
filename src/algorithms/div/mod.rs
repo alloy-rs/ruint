@@ -18,6 +18,7 @@ mod knuth;
 mod reciprocal;
 mod small;
 
+pub(crate) use self::knuth::rem_nxm_spare_limb;
 pub use self::{
     knuth::{div_nxm, div_nxm_normalized},
     reciprocal::{

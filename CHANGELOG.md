@@ -17,8 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Optimize `mul_mod` for operands with nonzero high limbs ([#647])
+- Optimize `mul_mod` for a `2^BITS - 1` modulus ([#647])
 - Optimize `add_mod` for operands less than twice the modulus ([#650])
 
+[#647]: https://github.com/alloy-rs/ruint/pull/647
 [#650]: https://github.com/alloy-rs/ruint/pull/650
 
 ### Fixed
