@@ -86,6 +86,63 @@ pub unsafe fn div_nxm_normalized(numerator: &mut [u64], divisor: &[u64]) {
     }
 }
 
+/// Knuth long division remainder with in-place normalization.
+///
+/// Computes the remainder of `numerator / divisor` and stores it in `divisor`.
+/// The highest limb of `numerator` is spare space for the bits shifted out by
+/// normalization. Normalizing the numerator up front, unlike [`div_nxm`], lets
+/// each step reuse the two high remainder limbs computed with the quotient
+/// limb. `numerator` is clobbered.
+///
+/// # Safety
+///
+/// - `divisor` MUST contain at least two limbs.
+/// - The highest limb of `divisor` MUST be non-zero.
+/// - `numerator` MUST contain more limbs than `divisor`.
+/// - The highest limb of `numerator` MUST be zero.
+///
+/// In debug mode, panics if any condition of use is violated. In release, may
+/// panic or trigger UB if any condition of use is violated.
+#[inline(always)]
+pub(crate) unsafe fn rem_nxm_spare_limb(numerator: &mut [u64], divisor: &mut [u64]) {
+    debug_assert!(divisor.len() >= 2);
+    debug_assert!(numerator.len() > divisor.len());
+    debug_assert_ne!(*divisor.last().unwrap(), 0);
+    debug_assert_eq!(*numerator.last().unwrap(), 0);
+
+    let numerator = UncheckedSlice::wrap_mut(numerator);
+    let divisor = UncheckedSlice::wrap_mut(divisor);
+    let len = numerator.len();
+    let n = divisor.len();
+
+    let shift = divisor[n - 1].leading_zeros();
+    if shift != 0 {
+        for i in (1..n).rev() {
+            divisor[i] = (divisor[i] << shift) | (divisor[i - 1] >> (64 - shift));
+        }
+        divisor[0] <<= shift;
+        for i in (1..len).rev() {
+            numerator[i] = (numerator[i] << shift) | (numerator[i - 1] >> (64 - shift));
+        }
+        numerator[0] <<= shift;
+    }
+
+    // SAFETY: The divisor is normalized, and the numerator has more limbs than
+    // the divisor. The highest numerator limb holds at most `shift` bits, so it
+    // is smaller than the highest divisor limb and the quotient fits.
+    unsafe { div_nxm_normalized(numerator, divisor) };
+
+    // Denormalize the remainder.
+    if shift == 0 {
+        divisor.copy_from_slice(&numerator[..n]);
+    } else {
+        for i in 0..n - 1 {
+            divisor[i] = (numerator[i] >> shift) | (numerator[i + 1] << (64 - shift));
+        }
+        divisor[n - 1] = numerator[n - 1] >> shift;
+    }
+}
+
 /// ⚠️ In-place Knuth long division with implicit normalization and reciprocals.
 /// # Safety
 ///

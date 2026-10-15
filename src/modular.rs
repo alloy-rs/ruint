@@ -1,4 +1,7 @@
-use crate::{Uint, algorithms};
+use crate::{
+    Uint,
+    algorithms::{self, DW},
+};
 
 // FEATURE: sub_mod, neg_mod, inv_mod, div_mod, root_mod
 // See <https://en.wikipedia.org/wiki/Cipolla's_algorithm>
@@ -95,6 +98,38 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if modulus.is_zero() {
             return;
         }
+
+        // Fast path for operands with nonzero high limbs, which is the common
+        // case for field arithmetic. All sizes are known at compile time, which
+        // lets the compiler unroll the loops.
+        if LIMBS >= 2
+            && self.limbs[LIMBS - 1] != 0
+            && rhs.limbs[LIMBS - 1] != 0
+            && modulus.limbs[LIMBS - 1] != 0
+        {
+            // Double-width product plus a spare limb for normalization.
+            #[repr(C)]
+            struct Product<const LIMBS: usize>([u64; LIMBS], [u64; LIMBS], u64);
+            let mut product = Product([0; LIMBS], [0; LIMBS], 0);
+            // SAFETY: `Product` is `repr(C)` and consists of `2 * LIMBS + 1`
+            // `u64`s, so it has no padding.
+            let product = unsafe {
+                core::slice::from_raw_parts_mut((&raw mut product).cast::<u64>(), 2 * LIMBS + 1)
+            };
+            for (j, &b) in rhs.limbs.iter().enumerate() {
+                let mut carry = 0;
+                for (i, &a) in self.limbs.iter().enumerate() {
+                    (product[i + j], carry) = DW::split(DW::muladd2(a, b, carry, product[i + j]));
+                }
+                product[j + LIMBS] = carry;
+            }
+            // SAFETY: The modulus has at least two limbs and a nonzero high
+            // limb, and the product has more limbs than the modulus, with a
+            // zero high limb.
+            unsafe { algorithms::div::rem_nxm_spare_limb(product, &mut modulus.limbs) };
+            return;
+        }
+
         let_double_bits!(product);
         let overflow = algorithms::addmul(product, self.as_limbs(), rhs.as_limbs());
         debug_assert!(!overflow);
@@ -267,6 +302,27 @@ mod tests {
             proptest!(|(value: U, m: U)| {
                 assert_eq!(value.mul_mod(U::from(0), m), U::ZERO);
                 assert_eq!(value.mul_mod(U::from(1), m), value.reduce_mod(m));
+            });
+        });
+    }
+
+    #[test]
+    fn test_mul_mod_widening() {
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            const BITS_W: usize = 2 * BITS;
+            const LIMBS_W: usize = nlimbs(BITS_W);
+            type U = Uint<BITS, LIMBS>;
+            type W = Uint<BITS_W, LIMBS_W>;
+            proptest!(|(a: U, b: U, m: U, shift in 0..BITS)| {
+                // Vary the modulus size to cover every normalization shift.
+                let m = m >> shift;
+                let expected = if m.is_zero() {
+                    U::ZERO
+                } else {
+                    U::from(a.widening_mul::<BITS, LIMBS, BITS_W, LIMBS_W>(b) % W::from(m))
+                };
+                assert_eq!(a.mul_mod(b, m), expected);
             });
         });
     }
