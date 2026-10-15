@@ -326,6 +326,24 @@ mod tests {
                 });
             });
         });
+
+        // Partial limbs, where the result can have one limb less than the
+        // operands combined.
+        const_for!(BITS_LHS in [1, 63, 65, 130] {
+            const LIMBS_LHS: usize = nlimbs(BITS_LHS);
+            type Lhs = Uint<BITS_LHS, LIMBS_LHS>;
+            const_for!(BITS_RHS in [1, 63, 65, 130] {
+                const LIMBS_RHS: usize = nlimbs(BITS_RHS);
+                type Rhs = Uint<BITS_RHS, LIMBS_RHS>;
+                const BITS_RES: usize = BITS_LHS + BITS_RHS;
+                const LIMBS_RES: usize = nlimbs(BITS_RES);
+                type Res = Uint<BITS_RES, LIMBS_RES>;
+                proptest!(|(lhs: Lhs, rhs: Rhs)| {
+                    let expected = Res::from(lhs) * Res::from(rhs);
+                    assert_eq!(lhs.widening_mul(rhs), expected);
+                });
+            });
+        });
     }
 
     #[test]
