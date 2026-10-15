@@ -1,7 +1,4 @@
-use crate::{
-    Uint,
-    algorithms::{self, DW},
-};
+use crate::{Uint, algorithms};
 
 // FEATURE: sub_mod, neg_mod, inv_mod, div_mod, root_mod
 // See <https://en.wikipedia.org/wiki/Cipolla's_algorithm>
@@ -252,11 +249,8 @@ impl<const LIMBS: usize> Product<LIMBS> {
         let mut product = Self([0; LIMBS], [0; LIMBS], 0);
         let limbs = product.as_mut_slice();
         for (j, &b) in b.iter().enumerate() {
-            let mut carry = 0;
-            for (i, &a) in a.iter().enumerate() {
-                (limbs[i + j], carry) = DW::split(DW::muladd2(a, b, carry, limbs[i + j]));
-            }
-            limbs[j + LIMBS] = carry;
+            // SAFETY: Both slices have `LIMBS` limbs.
+            limbs[j + LIMBS] = unsafe { algorithms::addmul_nx1(&mut limbs[j..j + LIMBS], a, b) };
         }
         product
     }
