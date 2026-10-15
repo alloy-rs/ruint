@@ -799,9 +799,8 @@ impl<const BITS: usize, const LIMBS: usize> From<&Uint<BITS, LIMBS>> for f32 {
     ///
     /// Returns `f32::INFINITY` if the value is too large to represent.
     #[inline]
-    #[allow(clippy::cast_precision_loss)] // Documented
     fn from(value: &Uint<BITS, LIMBS>) -> Self {
-        f64::from(value) as f32
+        Self::from_bits(value.as_f32_bits())
     }
 }
 
@@ -887,6 +886,61 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
         // Combine with '+' so a carry out of m bumps the exponent.
         (e_pre << 52) + m
+    }
+
+    /// Convert to IEEE 754 single precision float bit representation.
+    ///
+    /// Same algorithm as [`Self::as_f64_bits`], rounding once to 24 bits.
+    #[inline]
+    fn as_f32_bits(&self) -> u32 {
+        as_primitives!(self; {
+            u64(x) => return f32::to_bits(x as f32),
+        });
+
+        const SIG: usize = f32::MANTISSA_DIGITS as usize; // includes the hidden bit
+
+        let sd = self.bit_len(); // 0 for zero
+        if sd == 0 {
+            return 0;
+        }
+
+        // Any value >= 2^128 exceeds f32::MAX. With sd == 128 a rounding carry
+        // moves the exponent field from 254 to 255, which encodes +∞.
+        if sd >= 129 {
+            return 0x7f80_0000;
+        }
+
+        let e_pre = 125u32 + sd as u32;
+
+        // Fits entirely in the 24-bit significand: normalize, no rounding.
+        if sd <= SIG {
+            let a = self.as_limbs()[0] as u32;
+            return (e_pre << 23) + (a << (SIG - sd));
+        }
+
+        // Extract a 25-bit window [MSB .. MSB-24].
+        let msb = sd - 1;
+        let li = msb >> 6;
+        let off = msb & 63;
+
+        let limbs = self.as_limbs();
+        let hi = limbs[li];
+        let lo = if li > 0 { limbs[li - 1] } else { 0 };
+
+        let w = ((hi as u128) << 64) | (lo as u128);
+        let win25 = (w >> (64 + off - SIG)) as u32;
+
+        let a = win25 >> 1; // 24-bit mantissa incl. hidden bit
+        let guard = (win25 & 1) != 0;
+        let guard_pos = sd - SIG - 1;
+        let sticky = guard_pos != 0 && self.trailing_zeros() < guard_pos;
+
+        // Round to nearest, ties-to-even.
+        let round_up = guard && (sticky || ((a & 1) != 0));
+        let m = a + (round_up as u32);
+
+        // Combine with '+' so a carry out of m bumps the exponent.
+        (e_pre << 23) + m
     }
 }
 
@@ -1062,6 +1116,49 @@ mod test {
         assert!(f32::from(Uint::<F32_BITS, F_32LIMBS>::MAX).is_infinite());
     }
 
+    // Rounding through f64 drops the sticky bit 0, leaving an exact tie on the
+    // f32 rounding bit 36 that then rounds down to even.
+    #[test]
+    fn uint_to_f32_rounds_once() {
+        let x: u128 = (1 << 60) + (1 << 36) + 1;
+        assert_eq!(f32::from(crate::aliases::U256::from(x)), x as f32);
+    }
+
+    // Correctly rounded reference: the top 128 bits with the rest folded into
+    // a sticky bit, converted with `as`, then scaled back up.
+    fn reference_f32<const BITS: usize, const LIMBS: usize>(value: &Uint<BITS, LIMBS>) -> f32 {
+        let shift = value.bit_len().saturating_sub(128);
+        let top = *value >> shift;
+        let sticky = (top << shift) != *value;
+        let mut f = (top.to::<u128>() | u128::from(sticky)) as f32;
+        for _ in 0..shift {
+            f *= 2.0;
+        }
+        f
+    }
+
+    #[test]
+    fn uint_to_f32_is_correctly_rounded() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint::<BITS, LIMBS>;
+            proptest!(|(value: U)| {
+                assert_eq!(f32::from(&value).to_bits(), reference_f32(&value).to_bits(), "value = {value}");
+            });
+        });
+
+        type U256 = crate::aliases::U256;
+        let f32_max = U256::from((1u64 << 24) - 1) << 104;
+        assert_eq!(f32::from(f32_max), f32::MAX);
+        // Halfway between f32::MAX and 2^128 rounds up to infinity.
+        assert_eq!(f32::from(f32_max + (U256::from(1) << 103)), f32::INFINITY);
+        assert_eq!(
+            f32::from(f32_max + (U256::from(1) << 103) - U256::from(1)),
+            f32::MAX
+        );
+        assert_eq!(f32::from(U256::from(1) << 128), f32::INFINITY);
+    }
+
     // Non-finite f64 inputs must be rejected regardless of BITS. For BITS >=
     // 1025 the unbiased exponent of NaN/inf (1024) no longer exceeds BITS,
     // so the overflow check alone does not fire.
@@ -1108,7 +1205,7 @@ mod test {
         let w = (U1088::from(1u64) << 1025) - U1088::from(1u64);
         assert_eq!(f64::from(w), f64::INFINITY);
 
-        // f32 conversion goes through f64, so it must saturate too.
+        // f32 conversion must saturate too.
         assert_eq!(f32::from(v), f32::INFINITY);
 
         // Exactly 2^1024 (1025 significant bits) rounds to +inf.
