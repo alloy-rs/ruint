@@ -328,6 +328,30 @@ mod tests {
     }
 
     #[test]
+    fn test_add_mod_widening() {
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            const BITS_W: usize = BITS + 1;
+            const LIMBS_W: usize = nlimbs(BITS_W);
+            type U = Uint<BITS, LIMBS>;
+            type W = Uint<BITS_W, LIMBS_W>;
+            proptest!(|(a: U, b: U, m: U, shift in 0..BITS)| {
+                let m = m >> shift;
+                // Cover reduced operands and operands just above the modulus.
+                let (ar, br) = (a.reduce_mod(m), b.reduce_mod(m));
+                for (a, b) in [(a, b), (ar, br), (m.saturating_add(ar), br), (ar, m.saturating_add(br))] {
+                    let expected = if m.is_zero() {
+                        U::ZERO
+                    } else {
+                        U::from((W::from(a) + W::from(b)) % W::from(m))
+                    };
+                    assert_eq!(a.add_mod(b, m), expected);
+                }
+            });
+        });
+    }
+
+    #[test]
     fn test_pow_identity() {
         const_for!(BITS in NON_ZERO {
             const LIMBS: usize = nlimbs(BITS);

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Optimize `mul_mod` for operands with nonzero high limbs ([#647])
+- Optimize `add_mod` for operands less than twice the modulus
 
 ### Fixed
 
