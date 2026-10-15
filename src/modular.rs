@@ -32,6 +32,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn add_mod(mut self, rhs: Self, mut modulus: Self) -> Self {
+        // Fast path for a modulus with a nonzero high limb and operands whose
+        // high limbs do not exceed it, which implies that the operands are less
+        // than twice the modulus. This covers already reduced operands.
+        if LIMBS >= 2
+            && modulus.limbs[LIMBS - 1] != 0
+            && self.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+            && rhs.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+        {
+            let reduce = |x: Self| {
+                let (r, borrow) = x.overflowing_sub(modulus);
+                if borrow { x } else { r }
+            };
+            let (sum, carry) = reduce(self).overflowing_add(reduce(rhs));
+            let (r, borrow) = sum.overflowing_sub(modulus);
+            return if carry || !borrow { r } else { sum };
+        }
+
         if modulus.is_zero() {
             return Self::ZERO;
         }
