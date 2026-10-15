@@ -597,4 +597,34 @@ mod tests {
             assert!(numerator[quotient.len()..].iter().all(|&x| x == 0));
         });
     }
+
+    #[test]
+    fn test_rem_nxm_spare_limb() {
+        let quotient = collection::vec(num::u64::ANY, 1..10);
+        // Vary the high limb size to cover every normalization shift.
+        let divisor =
+            (collection::vec(num::u64::ANY, 2..10), 0..64_u32).prop_map(|(mut vec, shift)| {
+                let last = vec.last_mut().unwrap();
+                *last = (*last >> shift).max(1);
+                vec
+            });
+        let dr = divisor.prop_flat_map(|divisor| {
+            let d = divisor.clone();
+            let remainder =
+                collection::vec(num::u64::ANY, divisor.len()).prop_map(move |mut vec| {
+                    *vec.last_mut().unwrap() %= d.last().unwrap();
+                    vec
+                });
+            (Just(divisor), remainder)
+        });
+        proptest!(|(quotient in quotient, (mut divisor, remainder) in dr)| {
+            // The highest limb is the spare limb.
+            let mut numerator: Vec<u64> = vec![0; divisor.len() + quotient.len() + 1];
+            numerator[..remainder.len()].copy_from_slice(&remainder);
+            addmul(&mut numerator, quotient.as_slice(), divisor.as_slice());
+
+            unsafe { rem_nxm_spare_limb(numerator.as_mut_slice(), divisor.as_mut_slice()) };
+            assert_eq!(divisor, remainder);
+        });
+    }
 }
