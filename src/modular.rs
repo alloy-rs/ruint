@@ -99,6 +99,16 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return;
         }
 
+        // Since `2^BITS = 1 (mod 2^BITS - 1)`, reduce the product by adding its
+        // high half to its low half with an end-around carry.
+        if BITS.is_multiple_of(64) && *modulus == Self::MAX {
+            let Product(lo, hi, _) = Product::new(&self.limbs, &rhs.limbs);
+            let (sum, carry) = Self::from_limbs(lo).overflowing_add(Self::from_limbs(hi));
+            let sum = sum.wrapping_add(Self::from(carry));
+            *modulus = if sum == Self::MAX { Self::ZERO } else { sum };
+            return;
+        }
+
         // Fast path for operands with nonzero high limbs, which is the common
         // case for field arithmetic.
         if LIMBS >= 2
@@ -113,16 +123,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             unsafe {
                 algorithms::div::rem_nxm_spare_limb(product.as_mut_slice(), &mut modulus.limbs)
             };
-            return;
-        }
-
-        // Since `2^BITS = 1 (mod 2^BITS - 1)`, reduce the product by adding its
-        // high half to its low half with an end-around carry.
-        if BITS.is_multiple_of(64) && *modulus == Self::MAX {
-            let Product(lo, hi, _) = Product::new(&self.limbs, &rhs.limbs);
-            let (sum, carry) = Self::from_limbs(lo).overflowing_add(Self::from_limbs(hi));
-            let sum = sum.wrapping_add(Self::from(carry));
-            *modulus = if sum == Self::MAX { Self::ZERO } else { sum };
             return;
         }
 
