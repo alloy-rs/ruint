@@ -9,16 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- rand 0.10 support ([#644])
+
+[#644]: https://github.com/alloy-rs/ruint/pull/644
+
 ### Changed
 
 - Optimize `div_rem`, `/` and `%` for numerators less than the divisor or that fit in a limb, and for power of two divisors ([#651])
+
+[#651]: https://github.com/alloy-rs/ruint/pull/651
 
 ### Fixed
 
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
-[#651]: https://github.com/alloy-rs/ruint/pull/651
 
 ## [1.20.1] - 2026-09-07
 

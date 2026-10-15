@@ -26,6 +26,7 @@ mod proptest;
 mod pyo3;
 mod quickcheck;
 mod rand;
+mod rand_010;
 mod rand_09;
 pub mod rkyv;
 mod rlp;
