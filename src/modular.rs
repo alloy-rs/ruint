@@ -35,6 +35,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn add_mod(mut self, rhs: Self, mut modulus: Self) -> Self {
+        // Fast path for a modulus with a nonzero high limb and operands whose
+        // high limbs do not exceed it, which implies that the operands are less
+        // than twice the modulus. This covers already reduced operands.
+        if LIMBS >= 2
+            && modulus.limbs[LIMBS - 1] != 0
+            && self.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+            && rhs.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+        {
+            let reduce = |x: Self| {
+                let (r, borrow) = x.overflowing_sub(modulus);
+                if borrow { x } else { r }
+            };
+            let (sum, carry) = reduce(self).overflowing_add(reduce(rhs));
+            let (r, borrow) = sum.overflowing_sub(modulus);
+            return if carry || !borrow { r } else { sum };
+        }
+
         if modulus.is_zero() {
             return Self::ZERO;
         }
@@ -99,15 +116,16 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return;
         }
 
-        // Fast path for operands with nonzero high limbs, which is the common
-        // case for field arithmetic. All sizes are known at compile time, which
-        // lets the compiler unroll the loops.
-        if LIMBS >= 2
+        // Fast paths for operands with nonzero high limbs, which is the common
+        // case for field arithmetic, and for a `2^BITS - 1` modulus.
+        let full = LIMBS >= 2
             && self.limbs[LIMBS - 1] != 0
             && rhs.limbs[LIMBS - 1] != 0
-            && modulus.limbs[LIMBS - 1] != 0
-        {
-            // Double-width product plus a spare limb for normalization.
+            && modulus.limbs[LIMBS - 1] != 0;
+        if full || BITS.is_multiple_of(64) && *modulus == Self::MAX {
+            // Double-width product plus a spare limb for normalization. All
+            // sizes are known at compile time, which lets the compiler unroll
+            // the loops.
             #[repr(C)]
             struct Product<const LIMBS: usize>([u64; LIMBS], [u64; LIMBS], u64);
             let mut product = Product([0; LIMBS], [0; LIMBS], 0);
@@ -123,6 +141,18 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 }
                 product[j + LIMBS] = carry;
             }
+
+            if !full {
+                // The modulus is `2^BITS - 1`, and `2^BITS = 1` modulo it, so
+                // add the high half to the low half with an end-around carry.
+                let lo = Self::from_limbs(product[..LIMBS].try_into().unwrap());
+                let hi = Self::from_limbs(product[LIMBS..2 * LIMBS].try_into().unwrap());
+                let (sum, carry) = lo.overflowing_add(hi);
+                let sum = sum.wrapping_add(Self::from(carry));
+                *modulus = if sum == Self::MAX { Self::ZERO } else { sum };
+                return;
+            }
+
             // SAFETY: The modulus has at least two limbs and a nonzero high
             // limb, and the product has more limbs than the modulus, with a
             // zero high limb.
@@ -316,14 +346,17 @@ mod tests {
             type W = Uint<BITS_W, LIMBS_W>;
             proptest!(|(a: U, b: U, m: U, shift in 0..BITS)| {
                 // Vary the modulus size to cover every normalization shift.
-                let m = m >> shift;
-                let expected = if m.is_zero() {
-                    U::ZERO
-                } else {
-                    U::from(a.widening_mul::<BITS, LIMBS, BITS_W, LIMBS_W>(b) % W::from(m))
-                };
-                assert_eq!(a.mul_mod(b, m), expected);
+                for (a, m) in [(a, m >> shift), (a, U::MAX), (a >> shift, U::MAX)] {
+                    let expected = if m.is_zero() {
+                        U::ZERO
+                    } else {
+                        U::from(a.widening_mul::<BITS, LIMBS, BITS_W, LIMBS_W>(b) % W::from(m))
+                    };
+                    assert_eq!(a.mul_mod(b, m), expected);
+                }
             });
+            assert_eq!(U::MAX.mul_mod(U::ONE, U::MAX), U::ZERO);
+            assert_eq!(U::MAX.mul_mod(U::MAX, U::MAX), U::ZERO);
         });
     }
 
