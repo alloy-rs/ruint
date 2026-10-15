@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Optimize `add_mod` for operands less than twice the modulus
+
 ### Fixed
 
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
