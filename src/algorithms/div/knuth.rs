@@ -127,10 +127,18 @@ pub(crate) unsafe fn rem_nxm_spare_limb(numerator: &mut [u64], divisor: &mut [u6
         numerator[0] <<= shift;
     }
 
+    // Skip the highest quotient limb if it is zero, which is the case when the
+    // numerator is a product of operands reduced modulo the divisor.
+    let skip = len > n + 1
+        && numerator[len - 1] == 0
+        && DW::join(numerator[len - 2], numerator[len - 3])
+            <= DW::join(divisor[n - 1], divisor[n - 2]);
+
     // SAFETY: The divisor is normalized, and the numerator has more limbs than
     // the divisor. The highest numerator limb holds at most `shift` bits, so it
-    // is smaller than the highest divisor limb and the quotient fits.
-    unsafe { div_nxm_normalized(numerator, divisor) };
+    // is smaller than the highest divisor limb and the quotient fits. When
+    // skipping, the remaining two highest limbs don't exceed the divisor's.
+    unsafe { div_nxm_normalized(&mut numerator[..len - skip as usize], divisor) };
 
     // Denormalize the remainder.
     if shift == 0 {
