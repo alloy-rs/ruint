@@ -100,7 +100,9 @@ pub const fn addmul_n_overflowing(lhs: &mut [u64], a: &[u64], b: &[u64]) -> bool
     // Above this, the unrolled rows spill enough registers to lose to `addmul`.
     const SMALL_LIMIT: usize = 6;
     let n = lhs.len();
-    if !(n <= SMALL_LIMIT && a.len() == n && b.len() == n) {
+    // On 32-bit targets a full 64-bit product costs several multiplies or a
+    // libcall, so `addmul`, which skips zero limbs, is faster there.
+    if !(cfg!(target_pointer_width = "64") && n <= SMALL_LIMIT && a.len() == n && b.len() == n) {
         return addmul(lhs, a, b);
     }
     // Nonzero if any partial product or carry lands above the top limb.
