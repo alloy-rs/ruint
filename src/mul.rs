@@ -152,17 +152,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         assert!(BITS_RES == BITS + BITS_RHS);
         assert!(LIMBS_RES == nlimbs(BITS_RES));
         let mut result = Uint::<BITS_RES, LIMBS_RES>::ZERO;
-        const_range_for!(i in 0..LIMBS_RHS => {
-            let (_, row) = result.limbs.split_at_mut(i);
-            let (row, top) = row.split_at_mut(LIMBS);
-            // SAFETY: Both slices have `LIMBS` limbs.
-            let carry = unsafe { algorithms::addmul_nx1(row, self.as_limbs(), rhs.limbs[i]) };
-            // When the result has one limb less than the operands combined,
-            // the last carry is zero.
-            if let [top, ..] = top {
-                *top = carry;
-            }
-        });
+        // On 32-bit targets a full 64-bit product costs several multiplies or
+        // a libcall, so `addmul`, which skips zero limbs, is faster there.
+        if cfg!(target_pointer_width = "64") {
+            const_range_for!(i in 0..LIMBS_RHS => {
+                let (_, row) = result.limbs.split_at_mut(i);
+                let (row, top) = row.split_at_mut(LIMBS);
+                // SAFETY: Both slices have `LIMBS` limbs.
+                let carry = unsafe { algorithms::addmul_nx1(row, self.as_limbs(), rhs.limbs[i]) };
+                // When the result has one limb less than the operands combined,
+                // the last carry is zero.
+                if let [top, ..] = top {
+                    *top = carry;
+                }
+            });
+        } else {
+            algorithms::addmul(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
+        }
         if LIMBS_RES > 0 {
             debug_assert!(result.limbs[LIMBS_RES - 1] <= Uint::<BITS_RES, LIMBS_RES>::MASK);
         }
