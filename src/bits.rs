@@ -481,8 +481,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline(always)]
     #[must_use]
     pub const fn wrapping_shl(self, rhs: usize) -> Self {
-        if LIMBS == 4 {
-            return self.shl4(rhs);
+        if Self::SHIFT_SELECT {
+            return self.shl_select(rhs);
         }
         as_primitives!(self; {
             u64(x) => {
@@ -608,8 +608,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline(always)]
     #[must_use]
     pub const fn wrapping_shr(self, rhs: usize) -> Self {
-        if LIMBS == 4 {
-            return self.shr4(rhs, 0);
+        if Self::SHIFT_SELECT {
+            return self.shr_select(rhs, 0);
         }
         as_primitives!(self; {
             u64(x) => {
@@ -636,8 +636,14 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return Self::ZERO;
         }
-        if BITS == 256 {
-            return self.shr4(rhs, ((self.limbs[3] as i64) >> 63) as u64);
+        if Self::SHIFT_SELECT {
+            // Sign-extend the top limb so the shift moves copies of the sign
+            // bit down, then clear the bits above `BITS` again.
+            let mut x = self;
+            let pad = (64 * LIMBS - BITS) as u32;
+            let top = ((x.limbs[LIMBS - 1] << pad) as i64 >> pad) as u64;
+            x.limbs[LIMBS - 1] = top;
+            return x.shr_select(rhs, ((top as i64) >> 63) as u64);
         }
         let sign = self.bit(BITS - 1);
         let mut r = self.wrapping_shr(rhs);
@@ -673,80 +679,75 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         self.rotate_left(BITS - rhs)
     }
 
-    /// Left shift of a four-limb integer by `rhs` bits.
+    /// Whether shifts use [`shl_select`](Self::shl_select) and
+    /// [`shr_select`](Self::shr_select). One and two limbs use primitive
+    /// shifts instead. The number of selects grows as `LIMBS * log2(LIMBS)`,
+    /// so larger sizes keep the loop in `overflowing_shl`: above eight limbs
+    /// on 64-bit targets, and above four on 32-bit targets.
+    const SHIFT_SELECT: bool =
+        LIMBS > 2 && (LIMBS <= 4 || cfg!(target_pointer_width = "64") && LIMBS <= 8);
+
+    /// Number of limb-moving stages in the select shifts.
+    const SHIFT_STAGES: usize = LIMBS.next_power_of_two().trailing_zeros() as usize;
+
+    /// Left shift by `rhs` bits.
     ///
-    /// Shifts every limb by `rhs % 64` bits, then moves whole limbs by one and
-    /// two places as bits 6 and 7 of `rhs` select. Every step reads fixed
-    /// limb indices, so it compiles to funnel shifts and conditional moves
-    /// with no branches.
+    /// Shifts every limb by `rhs % 64` bits, then moves whole limbs by 1, 2,
+    /// 4, ... places as the bits of `rhs / 64` select, and finally clears
+    /// everything if `rhs >= BITS`. Each stage reads fixed limb indices, so
+    /// it compiles to funnel shifts and conditional moves with no branches.
+    ///
+    /// The loops run over limbs on the outside and stages on the inside,
+    /// keeping every stage's result: with stages on the outside, LLVM hoists
+    /// each stage's condition out of its limb loop and turns the selects into
+    /// branches.
     #[inline(always)]
-    const fn shl4(self, rhs: usize) -> Self {
+    const fn shl_select(self, rhs: usize) -> Self {
         let x = &self.limbs;
         let s = (rhs % 64) as u32;
-        let (mut l0, mut l1, mut l2, mut l3) = (
-            x[0] << s,
-            funnel_shl(x[1], x[0], s),
-            funnel_shl(x[2], x[1], s),
-            funnel_shl(x[3], x[2], s),
-        );
-        let c = rhs & 64 != 0;
-        (l0, l1, l2, l3) = (
-            select(c, 0, l0),
-            select(c, l0, l1),
-            select(c, l1, l2),
-            select(c, l2, l3),
-        );
-        let c = rhs & 128 != 0;
-        (l0, l1, l2, l3) = (
-            select(c, 0, l0),
-            select(c, 0, l1),
-            select(c, l0, l2),
-            select(c, l1, l3),
-        );
-        let c = rhs >= 256;
-        let mut r = Self::ZERO;
-        r.limbs[0] = select(c, 0, l0);
-        r.limbs[1] = select(c, 0, l1);
-        r.limbs[2] = select(c, 0, l2);
-        r.limbs[3] = select(c, 0, l3);
-        r.masked()
+        // `v[t][i]` is limb `i` after `t` stages. Eight limbs need three
+        // stages plus the final one.
+        let mut v = [[0; LIMBS]; 5];
+        const_range_for!(i in 0..LIMBS => {
+            let lo = if i > 0 { x[i - 1] } else { 0 };
+            v[0][i] = funnel_shl(x[i], lo, s);
+            const_range_for!(t in 0..Self::SHIFT_STAGES + 1 => {
+                let k = 1 << t;
+                let (c, from) = if t < Self::SHIFT_STAGES {
+                    ((rhs / 64) & k != 0, if i >= k { v[t][i - k] } else { 0 })
+                } else {
+                    (rhs >= BITS, 0)
+                };
+                v[t + 1][i] = select(c, from, v[t][i]);
+            });
+        });
+        Self::from_limbs_unmasked(v[Self::SHIFT_STAGES + 1])
     }
 
-    /// Right shift of a four-limb integer by `rhs` bits that shifts in `fill`
-    /// limbs from the top.
+    /// Right shift by `rhs` bits that shifts in `fill` limbs from the top.
     ///
-    /// See [`shl4`](Self::shl4) for how it works.
+    /// See [`shl_select`](Self::shl_select) for how it works.
     #[inline(always)]
-    const fn shr4(self, rhs: usize, fill: u64) -> Self {
+    const fn shr_select(self, rhs: usize, fill: u64) -> Self {
         let x = &self.limbs;
         let s = (rhs % 64) as u32;
-        let (mut l0, mut l1, mut l2, mut l3) = (
-            funnel_shr(x[1], x[0], s),
-            funnel_shr(x[2], x[1], s),
-            funnel_shr(x[3], x[2], s),
-            funnel_shr(fill, x[3], s),
-        );
-        let c = rhs & 64 != 0;
-        (l0, l1, l2, l3) = (
-            select(c, l1, l0),
-            select(c, l2, l1),
-            select(c, l3, l2),
-            select(c, fill, l3),
-        );
-        let c = rhs & 128 != 0;
-        (l0, l1, l2, l3) = (
-            select(c, l2, l0),
-            select(c, l3, l1),
-            select(c, fill, l2),
-            select(c, fill, l3),
-        );
-        let c = rhs >= 256;
-        let mut r = Self::ZERO;
-        r.limbs[0] = select(c, fill, l0);
-        r.limbs[1] = select(c, fill, l1);
-        r.limbs[2] = select(c, fill, l2);
-        r.limbs[3] = select(c, fill, l3);
-        r
+        let mut v = [[0; LIMBS]; 5];
+        let mut i = LIMBS;
+        while i > 0 {
+            i -= 1;
+            let hi = if i + 1 < LIMBS { x[i + 1] } else { fill };
+            v[0][i] = funnel_shr(hi, x[i], s);
+            const_range_for!(t in 0..Self::SHIFT_STAGES + 1 => {
+                let k = 1 << t;
+                let (c, from) = if t < Self::SHIFT_STAGES {
+                    ((rhs / 64) & k != 0, if i + k < LIMBS { v[t][i + k] } else { fill })
+                } else {
+                    (rhs >= BITS, fill)
+                };
+                v[t + 1][i] = select(c, from, v[t][i]);
+            });
+        }
+        Self::from_limbs_unmasked(v[Self::SHIFT_STAGES + 1])
     }
 }
 
@@ -1357,25 +1358,24 @@ mod tests {
     }
 
     #[test]
-    fn test_four_limb_shifts() {
-        const_for!(BITS in [193, 256] {
-            type U = Uint<BITS, 4>;
-            proptest!(|(value: U, shift in 0..=BITS + 70)| {
+    fn test_select_shifts() {
+        const_for!(BITS in [129, 192, 193, 256, 320, 449, 512] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(value: U, shift in 0..=BITS + 130)| {
                 assert_eq!(value.wrapping_shl(shift), value.overflowing_shl(shift).0);
                 assert_eq!(value.wrapping_shr(shift), value.overflowing_shr(shift).0);
+                let fill = if value.bit(BITS - 1) {
+                    U::MAX.overflowing_shl(BITS.saturating_sub(shift)).0
+                } else {
+                    U::ZERO
+                };
+                assert_eq!(value.arithmetic_shr(shift), value.overflowing_shr(shift).0 | fill);
             });
+            assert_eq!(U::MAX.wrapping_shl(usize::MAX), U::ZERO);
+            assert_eq!(U::MAX.wrapping_shr(usize::MAX), U::ZERO);
+            assert_eq!(U::MAX.arithmetic_shr(usize::MAX), U::MAX);
         });
-        proptest!(|(value: U256, shift in 0_usize..=330)| {
-            let fill = if value.bit(255) {
-                U256::MAX.overflowing_shl(256_usize.saturating_sub(shift)).0
-            } else {
-                U256::ZERO
-            };
-            assert_eq!(value.arithmetic_shr(shift), value.overflowing_shr(shift).0 | fill);
-        });
-        assert_eq!(U256::MAX.wrapping_shl(usize::MAX), U256::ZERO);
-        assert_eq!(U256::MAX.wrapping_shr(usize::MAX), U256::ZERO);
-        assert_eq!(U256::MAX.arithmetic_shr(usize::MAX), U256::MAX);
     }
 
     #[test]
