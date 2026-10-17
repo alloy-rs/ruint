@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test for `Less` first in `cmp`, so callers that only check for `Less` skip the equality test ([#657])
 - Optimize `wrapping_shl`, `wrapping_shr` and `arithmetic_shr` for three to eight limbs with branchless limb selects ([#658])
 - Optimize `<`, `<=`, `>` and `>=` on targets other than x86-64, and compare limbs inline in `==` and `is_zero` instead of calling `bcmp` ([#669])
-- Optimize `div_rem`, `/` and `%` for divisors of one or two limbs by skipping quotient limbs that are known to be zero ([#669])
 
 [#647]: https://github.com/alloy-rs/ruint/pull/647
 [#650]: https://github.com/alloy-rs/ruint/pull/650
