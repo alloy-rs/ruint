@@ -30,7 +30,7 @@ pub use self::{
     add::{borrowing_sub, borrowing_sub_n, carrying_add, carrying_add_n},
     div::div,
     gcd::{LehmerMatrix, gcd, gcd_extended, inv_mod},
-    mul::{add_nx1, addmul, addmul_n, addmul_nx1, mul_nx1, submul_nx1},
+    mul::{add_nx1, addmul, addmul_n, addmul_n_overflowing, addmul_nx1, mul_nx1, submul_nx1},
     mul_redc::{mul_redc, square_redc},
 };
 

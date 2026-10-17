@@ -53,7 +53,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[must_use]
     pub const fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         let mut result = Self::ZERO;
-        let mut overflow = algorithms::addmul(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
+        let mut overflow =
+            algorithms::addmul_n_overflowing(&mut result.limbs, self.as_limbs(), rhs.as_limbs());
         if Self::SHOULD_MASK {
             overflow |= result.limbs[LIMBS - 1] > Self::MASK;
             result.apply_mask();
@@ -348,6 +349,29 @@ mod tests {
                     let expected = Res::from(lhs) * Res::from(rhs);
                     assert_eq!(lhs.widening_mul(rhs), expected);
                 });
+            });
+        });
+    }
+
+    #[test]
+    fn test_overflowing_mul() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            const BITS_RES: usize = 2 * BITS;
+            const LIMBS_RES: usize = nlimbs(BITS_RES);
+            type U = Uint<BITS, LIMBS>;
+            type Res = Uint<BITS_RES, LIMBS_RES>;
+            // Shifting the operands puts the product on both sides of the
+            // overflow boundary. Keeping only the top bit of an operand makes
+            // overflow possible without a carry.
+            let top = |x: U| if x.is_zero() { x } else { x & (U::MAX << (x.bit_len() - 1)) };
+            proptest!(|(a: U, b: U, sa in 0..=BITS, sb in 0..=BITS)| {
+                let (a, b) = (a >> sa, b >> sb);
+                for (a, b) in [(a, b), (top(a), b), (a, top(b)), (top(a), top(b))] {
+                    let wide = Res::from(a) * Res::from(b);
+                    let expected = (U::wrapping_from(wide), wide >> BITS != Res::ZERO);
+                    assert_eq!(a.overflowing_mul(b), expected);
+                }
             });
         });
     }

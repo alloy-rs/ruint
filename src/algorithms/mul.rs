@@ -91,6 +91,35 @@ pub const fn addmul_n(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     }
 }
 
+/// ⚠️ Computes `result += a * b` and checks for overflow, with a fast-path for
+/// when all inputs are the same length and small enough.
+#[doc = crate::algorithms::unstable_warning!()]
+/// See [`addmul`] for more details.
+#[inline(always)]
+pub const fn addmul_n_overflowing(lhs: &mut [u64], a: &[u64], b: &[u64]) -> bool {
+    // Above this, the unrolled rows spill enough registers to lose to `addmul`.
+    const SMALL_LIMIT: usize = 6;
+    let n = lhs.len();
+    // On 32-bit targets a full 64-bit product costs several multiplies or a
+    // libcall, so `addmul`, which skips zero limbs, is faster there.
+    if !(cfg!(target_pointer_width = "64") && n <= SMALL_LIMIT && a.len() == n && b.len() == n) {
+        return addmul(lhs, a, b);
+    }
+    // Nonzero if any partial product or carry lands above the top limb.
+    let mut excess = 0;
+    // Limbs of `a` that row `j` would shift past the top limb.
+    let mut high = 0;
+    const_range_for!(j in 0..n => {
+        let (_, lhs) = lhs.split_at_mut(j);
+        let (a_low, _) = a.split_at(n - j);
+        // SAFETY: Both slices have `n - j` limbs.
+        excess |= unsafe { addmul_nx1(lhs, a_low, b[j]) };
+        excess |= if high != 0 { b[j] } else { 0 };
+        high |= a[n - j - 1];
+    });
+    excess != 0
+}
+
 #[inline(always)]
 const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     let n = lhs.len();
