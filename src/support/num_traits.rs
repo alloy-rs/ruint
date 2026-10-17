@@ -359,6 +359,21 @@ impl<const BITS: usize, const LIMBS: usize> FromPrimitive for Uint<BITS, LIMBS> 
     }
 }
 
+/// Converts through [`ToPrimitive::to_u128`], so this returns `None` for
+/// source values at or above `2^128`, even when they fit in `Self`.
+///
+/// [`ToPrimitive`] offers no exact way to read a wider value: falling back to
+/// [`ToPrimitive::to_f64`] would silently round wide integer sources. For float
+/// sources, use [`FromPrimitive::from_f64`] or [`FromPrimitive::from_f32`],
+/// which accept the full range of `Self`.
+///
+/// ```
+/// # use ruint::aliases::U256;
+/// use num_traits::FromPrimitive;
+///
+/// assert_eq!(num_traits::cast::<f64, U256>(1e40), None);
+/// assert!(U256::from_f64(1e40).is_some());
+/// ```
 impl<const BITS: usize, const LIMBS: usize> NumCast for Uint<BITS, LIMBS> {
     #[inline(always)]
     fn from<T: ToPrimitive>(n: T) -> Option<Self> {

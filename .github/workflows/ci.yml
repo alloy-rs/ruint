@@ -13,7 +13,7 @@ jobs:
     name: Accept
     runs-on: ubuntu-latest
     if: always()
-    needs: [test, wasm, feature-checks, clippy, docs, fmt]
+    needs: [test, wasm, big-endian, feature-checks, clippy, docs, fmt]
     steps:
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
@@ -83,6 +83,43 @@ jobs:
       # `--lib` avoids the workspace benches, which need a native harness.
       - name: Run tests
         run: cargo test --lib --target wasm32-wasip1 -- --nocapture
+
+  big-endian:
+    name: Big-endian (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no default features
+            flags: --no-default-features
+          - name: all features
+            flags: --features "$FEATURES"
+    env:
+      # The `pyo3` dev-dependency must know the Python version when cross-compiling.
+      PYO3_CROSS_PYTHON_VERSION: "3.12"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      # Sets `CARGO_BUILD_TARGET` and a QEMU runner, so tests run on s390x.
+      - uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: s390x-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      # Skip the nightly-only features and `pyo3`, whose tests need a Python
+      # library built for the target.
+      - name: Select features
+        run: |
+          features=$(cargo metadata --no-deps --format-version 1 | jq -r \
+            '.packages[] | select(.name == "ruint").features | keys - ["default", "nightly", "generic_const_exprs", "pyo3"] | join(",")')
+          echo "FEATURES=$features" >> "$GITHUB_ENV"
+      - name: Run tests
+        run: |
+          cargo test --workspace ${{ matrix.flags }} --tests -- --nocapture
+          cargo test --workspace ${{ matrix.flags }} --doc -- --nocapture
 
   feature-checks:
     name: Feature checks

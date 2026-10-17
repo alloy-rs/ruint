@@ -36,12 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `div_3x2_ref` returns the correct quotient ([#666])
 - Remove redundant homepage metadata to avoid Cargo manifest warnings ([#662])
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
+- `f32::from(&Uint)` rounds once to 24 bits instead of through `f64`, so it is correctly rounded ([#652])
+- `num-traits`: Document that `NumCast::from` returns `None` for source values at or above `2^128` and point float callers to `FromPrimitive` ([#664])
+- `ark-ff`: Document that the 0.4, 0.5 and 0.6 `From<BigInt>` and `From<Fp>` impls for `Uint` panic when the value does not fit in `BITS` bits ([#665])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
+[#652]: https://github.com/alloy-rs/ruint/pull/652
+[#665]: https://github.com/alloy-rs/ruint/pull/665
 
 [#662]: https://github.com/alloy-rs/ruint/pull/662
+[#666]: https://github.com/alloy-rs/ruint/pull/666
+[#664]: https://github.com/alloy-rs/ruint/pull/664
 
 ## [1.20.1] - 2026-09-07
 
