@@ -37,11 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove redundant homepage metadata to avoid Cargo manifest warnings ([#662])
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 - `f32::from(&Uint)` rounds once to 24 bits instead of through `f64`, so it is correctly rounded ([#652])
+- `num-traits`: Document that `NumCast::from` returns `None` for source values at or above `2^128` and point float callers to `FromPrimitive` ([#664])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
 [#652]: https://github.com/alloy-rs/ruint/pull/652
 
 [#662]: https://github.com/alloy-rs/ruint/pull/662
+[#664]: https://github.com/alloy-rs/ruint/pull/664
 
 ## [1.20.1] - 2026-09-07
 
