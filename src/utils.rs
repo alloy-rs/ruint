@@ -149,6 +149,14 @@ pub(crate) const fn select_unpredictable_u32(b: bool, true_val: u32, false_val: 
     if b { true_val } else { false_val }
 }
 
+/// Unlike an `if`, the mask keeps LLVM from turning chains of these selects
+/// into branches.
+#[inline(always)]
+pub(crate) const fn select_unpredictable_u64(b: bool, true_val: u64, false_val: u64) -> u64 {
+    let mask = 0u64.wrapping_sub(b as u64);
+    (true_val & mask) | (false_val & !mask)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
