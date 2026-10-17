@@ -24,10 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Remove redundant homepage metadata to avoid Cargo manifest warnings
+- Remove redundant homepage metadata to avoid Cargo manifest warnings ([#662])
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
+
+[#662]: https://github.com/alloy-rs/ruint/pull/662
 
 ## [1.20.1] - 2026-09-07
 
