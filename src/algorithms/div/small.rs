@@ -82,9 +82,17 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
     let divisor = divisor << shift;
     let reciprocal = unsafe { reciprocal(divisor) };
 
-    let last = limbs[limbs.len() - 1];
+    let mut len = limbs.len();
+    let last = limbs[len - 1];
     let mut remainder = last >> (64 - shift);
-    for i in (1..limbs.len()).rev() {
+    if len > 1 && last < divisor >> shift {
+        // The highest quotient limb is zero, and the highest shifted limb is
+        // the remainder.
+        remainder = (last << shift) | (limbs[len - 2] >> (64 - shift));
+        limbs[len - 1] = 0;
+        len -= 1;
+    }
+    for i in (1..len).rev() {
         // Shift limbs
         let upper = limbs[i];
         let lower = limbs[i - 1];
