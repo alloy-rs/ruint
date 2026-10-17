@@ -217,6 +217,19 @@ mod tests {
                     assert_eq!(n % d, r);
                 }
             });
+            proptest!(|(n: U, gap in 0..64_usize)| {
+                // Quotients just above and below `2^gap`, on both sides of the
+                // 32-bit quotients that `div_nxn` estimates.
+                let d = n >> gap;
+                for d in [d, d + U::from(d < U::MAX), d - U::from(d > U::ONE)] {
+                    if d.is_zero() {
+                        continue;
+                    }
+                    let (q, r) = n.div_rem(d);
+                    assert!(r < d);
+                    assert_eq!(q * d + r, n);
+                }
+            });
         });
     }
 
