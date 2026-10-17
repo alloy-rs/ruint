@@ -31,22 +31,45 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Returns zero if the modulus is zero.
     #[inline]
     #[must_use]
-    pub fn add_mod(mut self, rhs: Self, mut modulus: Self) -> Self {
+    pub fn add_mod(self, rhs: Self, mut modulus: Self) -> Self {
+        // Fast path for a modulus with a nonzero high limb and operands whose
+        // high limbs do not exceed it, which implies that the operands are less
+        // than twice the modulus. This covers already reduced operands.
+        if LIMBS >= 2
+            && modulus.limbs[LIMBS - 1] != 0
+            && self.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+            && rhs.limbs[LIMBS - 1] <= modulus.limbs[LIMBS - 1]
+        {
+            let reduce = |x: Self| {
+                let (r, borrow) = x.overflowing_sub(modulus);
+                if borrow { x } else { r }
+            };
+            let (sum, carry) = reduce(self).overflowing_add(reduce(rhs));
+            let (r, borrow) = sum.overflowing_sub(modulus);
+            return if carry || !borrow { r } else { sum };
+        }
+
+        self.add_mod_by_ref(&rhs, &mut modulus);
+        modulus
+    }
+
+    #[inline(never)]
+    fn add_mod_by_ref(&self, rhs: &Self, modulus: &mut Self) {
         if modulus.is_zero() {
-            return Self::ZERO;
+            return;
         }
 
         // This is not going to truncate with the final cast because the modulus
         // value is 64 bits.
         #[allow(clippy::cast_possible_truncation)]
         if BITS <= 64 {
-            self.limbs[0] =
+            modulus.limbs[0] =
                 ((self.limbs[0] as u128 + rhs.limbs[0] as u128) % modulus.limbs[0] as u128) as u64;
-            return self;
+            return;
         }
 
         // do overflowing add, then check if we should divrem
-        let (result, overflow) = self.overflowing_add(rhs);
+        let (result, overflow) = self.overflowing_add(*rhs);
         if overflow {
             // Add carry bit to the result. We might need an extra limb.
             let_double_bits!(numerator);
@@ -58,14 +81,12 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             // Reuse `div_rem` if we don't need an extra limb.
             if const { crate::nlimbs(BITS + 1) == LIMBS } {
                 let numerator = unsafe { &mut *numerator.as_mut_ptr().cast::<Self>() };
-                Self::div_rem_by_ref(numerator, &mut modulus);
+                Self::div_rem_by_ref(numerator, modulus);
             } else {
-                Self::div_rem_bits_plus_one(numerator.as_mut_ptr(), &mut modulus);
+                Self::div_rem_bits_plus_one(numerator.as_mut_ptr(), modulus);
             }
-
-            modulus
         } else {
-            result.reduce_mod(modulus)
+            *modulus = result.reduce_mod(*modulus);
         }
     }
 
@@ -321,6 +342,30 @@ mod tests {
             proptest!(|(value: U, m: U)| {
                 assert_eq!(value.mul_mod(U::from(0), m), U::ZERO);
                 assert_eq!(value.mul_mod(U::from(1), m), value.reduce_mod(m));
+            });
+        });
+    }
+
+    #[test]
+    fn test_add_mod_widening() {
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            const BITS_W: usize = BITS + 1;
+            const LIMBS_W: usize = nlimbs(BITS_W);
+            type U = Uint<BITS, LIMBS>;
+            type W = Uint<BITS_W, LIMBS_W>;
+            proptest!(|(a: U, b: U, m: U, shift in 0..BITS)| {
+                let m = m >> shift;
+                // Cover reduced operands and operands just above the modulus.
+                let (ar, br) = (a.reduce_mod(m), b.reduce_mod(m));
+                for (a, b) in [(a, b), (ar, br), (m.saturating_add(ar), br), (ar, m.saturating_add(br))] {
+                    let expected = if m.is_zero() {
+                        U::ZERO
+                    } else {
+                        U::from((W::from(a) + W::from(b)) % W::from(m))
+                    };
+                    assert_eq!(a.add_mod(b, m), expected);
+                }
             });
         });
     }
