@@ -1116,47 +1116,41 @@ mod test {
         assert!(f32::from(Uint::<F32_BITS, F_32LIMBS>::MAX).is_infinite());
     }
 
-    // Rounding through f64 drops the sticky bit 0, leaving an exact tie on the
-    // f32 rounding bit 36 that then rounds down to even.
+    // Rounding through f64 drops bit 0, the sticky bit, leaving an exact tie on
+    // the f32 rounding bit 36 that then rounds down to even.
     #[test]
     fn uint_to_f32_rounds_once() {
+        type U256 = crate::aliases::U256;
         let x: u128 = (1 << 60) + (1 << 36) + 1;
-        assert_eq!(f32::from(crate::aliases::U256::from(x)), x as f32);
+        let expected = f32::from_bits(0x5d80_0001); // 2^60 + 2^37
+        assert_eq!(f32::from(Uint::<128, 2>::from(x)), expected);
+        assert_eq!(f32::from(U256::from(x)), expected);
+        // Without bit 0 it is an exact tie, which rounds down to even.
+        assert_eq!(f32::from(U256::from(x - 1)), f32::from_bits(0x5d80_0000));
+
+        let f32_max = U256::from((1u64 << 24) - 1) << 104;
+        let half_ulp = U256::from(1) << 103;
+        assert_eq!(f32::from(f32_max), f32::MAX);
+        // Just below the midpoint between f32::MAX and 2^128 rounds down.
+        assert_eq!(f32::from(f32_max + half_ulp - U256::from(1)), f32::MAX);
+        // The midpoint rounds to even, which is 2^128, i.e. infinity.
+        assert_eq!(f32::from(f32_max + half_ulp), f32::INFINITY);
+        assert_eq!(f32::from(U256::from(1) << 128), f32::INFINITY);
     }
 
-    // Correctly rounded reference: the top 128 bits with the rest folded into
-    // a sticky bit, converted with `as`, then scaled back up.
-    fn reference_f32<const BITS: usize, const LIMBS: usize>(value: &Uint<BITS, LIMBS>) -> f32 {
-        let shift = value.bit_len().saturating_sub(128);
-        let top = *value >> shift;
-        let sticky = (top << shift) != *value;
-        let mut f = (top.to::<u128>() | u128::from(sticky)) as f32;
-        for _ in 0..shift {
-            f *= 2.0;
-        }
-        f
-    }
-
+    // Every finite f32 is below 2^128 and `as` rounds once, so the u128 cast is
+    // a correct reference. Shifting varies the bit length.
     #[test]
-    fn uint_to_f32_is_correctly_rounded() {
+    fn uint_to_f32_matches_u128_cast() {
         const_for!(BITS in SIZES {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint::<BITS, LIMBS>;
-            proptest!(|(value: U)| {
-                assert_eq!(f32::from(&value).to_bits(), reference_f32(&value).to_bits(), "value = {value}");
+            proptest!(|(value: U, shift in 0..=BITS)| {
+                let value = value >> shift;
+                let expected = u128::try_from(&value).map_or(f32::INFINITY, |x| x as f32);
+                assert_eq!(f32::from(&value).to_bits(), expected.to_bits(), "value = {value}");
             });
         });
-
-        type U256 = crate::aliases::U256;
-        let f32_max = U256::from((1u64 << 24) - 1) << 104;
-        assert_eq!(f32::from(f32_max), f32::MAX);
-        // Halfway between f32::MAX and 2^128 rounds up to infinity.
-        assert_eq!(f32::from(f32_max + (U256::from(1) << 103)), f32::INFINITY);
-        assert_eq!(
-            f32::from(f32_max + (U256::from(1) << 103) - U256::from(1)),
-            f32::MAX
-        );
-        assert_eq!(f32::from(U256::from(1) << 128), f32::INFINITY);
     }
 
     // Non-finite f64 inputs must be rejected regardless of BITS. For BITS >=
