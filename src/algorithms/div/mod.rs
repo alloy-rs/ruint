@@ -31,7 +31,7 @@ pub use self::{
     },
 };
 use crate::{
-    algorithms::{DW, borrowing_sub_n, mul::submul_nx1},
+    algorithms::{DW, carrying_add_n, mul::submul_nx1},
     utils::cold_path,
 };
 
@@ -143,12 +143,12 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
     }
 }
 
-/// Divides limb slices of the same length, whose quotient is a single limb,
-/// if the two highest limbs give an estimate that is at most two too small.
+/// Divides limb slices of the same length, whose quotient is a single limb.
 ///
-/// This replaces the divisor reciprocal with a single native division.
-/// Returns `false`, without changing anything, if the quotient may need more
-/// than 32 bits.
+/// If the quotient fits in 32 bits, a single native division of the two
+/// highest limbs estimates it. Otherwise one step of [`div_nxm`] does, which
+/// skips its quotient loop and final copies. Returns `false`, without changing
+/// anything, for a two-limb divisor with a quotient over 32 bits.
 #[inline(always)]
 fn div_nxn(numerator: &mut [u64], divisor: &mut [u64]) -> bool {
     // The caller checked that the lengths match, so this is free, and it lets
@@ -161,21 +161,35 @@ fn div_nxn(numerator: &mut [u64], divisor: &mut [u64]) -> bool {
     debug_assert!(!super::lt(numerator, divisor));
     // `numerator >= divisor`, so it has at most as many leading zeros.
     let shift = u1.leading_zeros();
-    if d1.leading_zeros() - shift >= 32 {
-        return false;
-    }
-    let a = DW::high(DW::join(u1, u0) << shift);
-    let b = DW::high(DW::join(d1, d0) << shift);
-    // The divisor's top limb has at least 32 significant bits, so rounding it
-    // up makes the estimate at most two too small, and never too large.
-    let mut q = a / b.saturating_add(1);
+    let mut q = if d1.leading_zeros() - shift < 32 {
+        let a = DW::high(DW::join(u1, u0) << shift);
+        let b = DW::high(DW::join(d1, d0) << shift);
+        // `b` has more than 32 bits and the quotient fewer, so the estimate is
+        // at most one too large, and never too small.
+        a / b
+    } else {
+        let (&[.., u00, _, _], &[.., d00, _, _]) = (&*numerator, &*divisor) else {
+            return false;
+        };
+        // Normalize the top three limbs as `div_nxm` does. The divisor's top
+        // limb has at least 32 leading zeros, so `shift` is in `32..64`.
+        let shift = d1.leading_zeros();
+        let d = (DW::join(d1, d0) << shift) | u128::from(d00 >> (64 - shift));
+        let n21 = (u128::from(u1) << shift) | u128::from(u0 >> (64 - shift));
+        let n0 = (u0 << shift) | (u00 >> (64 - shift));
+        // SAFETY: `d` is normalized, and `n21 < d` because the quotient fits
+        // in a limb. The estimate is at most one too large, and never too
+        // small.
+        unsafe { div_3x2(n21, n0, d, reciprocal_2(d)) }.0
+    };
     // SAFETY: Both slices have length `n`.
-    let borrow = unsafe { submul_nx1(numerator, divisor, q) };
-    debug_assert_eq!(borrow, 0);
-    while !super::lt(numerator, divisor) {
-        borrowing_sub_n(numerator, divisor, false);
-        q += 1;
+    let mut negative = unsafe { submul_nx1(numerator, divisor, q) } != 0;
+    // Add the divisor back until the remainder wraps around to non-negative.
+    while negative {
+        q -= 1;
+        negative = !carrying_add_n(numerator, divisor, false);
     }
+    debug_assert!(super::lt(numerator, divisor));
     for i in 0..n {
         divisor[i] = numerator[i];
         numerator[i] = 0;
