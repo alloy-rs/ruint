@@ -43,22 +43,13 @@ impl<const BITS: usize, const LIMBS: usize> Ord for Uint<BITS, LIMBS> {
     }
 }
 
-// On riscv the derived `PartialEq` (a `[u64; LIMBS]` array comparison) lowers
-// to a `bcmp`/`memcmp` libcall, whose call overhead dwarfs the comparison
-// itself — these targets have no inline-memcmp expansion. Open-code a
-// branchless limb compare there; all other targets keep the derive, which LLVM
-// already lowers optimally.
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 impl<const BITS: usize, const LIMBS: usize> PartialEq for Uint<BITS, LIMBS> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        let a = self.as_limbs();
-        let b = other.as_limbs();
+        // An array comparison becomes a `bcmp` libcall on some targets.
         let mut acc = 0;
-        let mut i = 0;
-        while i < LIMBS {
-            acc |= a[i] ^ b[i];
-            i += 1;
+        for (a, b) in self.limbs.iter().zip(&other.limbs) {
+            acc |= a ^ b;
         }
         acc == 0
     }
@@ -121,20 +112,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        if cfg!(any(target_arch = "riscv32", target_arch = "riscv64")) {
-            // On riscv, comparing against a materialized `Self::ZERO` becomes a
-            // `bcmp`/`memcmp` libcall; OR-accumulating the limbs avoids both
-            // the libcall and the zero temporary.
-            let mut acc = 0;
-            let mut i = 0;
-            while i < LIMBS {
-                acc |= self.limbs[i];
-                i += 1;
-            }
-            acc == 0
-        } else {
-            *self == Self::ZERO
-        }
+        // Folding a few limbs at a time keeps small sizes branchless and lets
+        // large ones stop at the first nonzero chunk.
+        self.limbs
+            .chunks(8)
+            .all(|chunk| chunk.iter().fold(0, |acc, limb| acc | limb) == 0)
     }
 
     /// Returns `true` if the value is zero.
@@ -205,6 +187,7 @@ mod tests {
         prop_assert_eq!(a > b, cmp.is_gt());
         prop_assert_eq!(a <= b, !cmp.is_gt());
         prop_assert_eq!(a >= b, !cmp.is_lt());
+        prop_assert_eq!(a == b, cmp.is_eq());
         Ok(())
     }
 
@@ -218,6 +201,14 @@ mod tests {
         assert!(!Uint::<1, 1>::from_limbs([1]).is_zero());
         assert!(!Uint::<7, 1>::from_limbs([1]).is_zero());
         assert!(!Uint::<64, 1>::from_limbs([1]).is_zero());
+
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            for i in 0..BITS {
+                assert!(!(U::ONE << i).is_zero());
+            }
+        });
     }
 
     #[test]
@@ -227,6 +218,18 @@ mod tests {
             type U = Uint<BITS, LIMBS>;
             proptest!(|(a: U, b: U)| {
                 check_cmp(a, b)?;
+            });
+        });
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(a: U)| {
+                // `c` differs from `a` only in the lowest bit, so comparing
+                // them borrows through every limb.
+                let c = a ^ U::ONE;
+                check_cmp(a, a)?;
+                check_cmp(a, c)?;
+                check_cmp(c, a)?;
             });
         });
     }

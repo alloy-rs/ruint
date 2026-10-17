@@ -135,12 +135,40 @@ macro_rules! cmp_fns {
 
 cmp_fns! {
     lt, "<"  => |a, b| match a.len().cmp(&b.len()) {
-        Ordering::Equal => sub(a, b).1,
+        Ordering::Equal => borrows(a, b),
         non_eq => non_eq.is_lt(),
     },
     gt, ">"  => |a, b| lt(b, a),
     ge, ">=" => |a, b| !lt(a, b),
     le, "<=" => |a, b| !lt(b, a),
+}
+
+/// Whether `a - b` borrows.
+#[inline]
+fn borrows(a: &[u64], b: &[u64]) -> bool {
+    assume!(a.len() == b.len());
+    #[cfg(target_arch = "x86_64")]
+    {
+        sub_x86_64(a, b).1
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        borrows_fallback(a, b)
+    }
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+fn borrows_fallback(a: &[u64], b: &[u64]) -> bool {
+    let mut borrow = false;
+    for i in 0..a.len() {
+        (_, borrow) = borrowing_sub(a[i], b[i], borrow);
+    }
+    // HACK: Without this, LLVM rewrites the chain as one compare and select
+    // per limb when the result feeds a branch or select.
+    // SAFETY: Writing to a local variable through a reference is safe.
+    unsafe { core::ptr::write_volatile(&mut borrow, borrow) };
+    borrow
 }
 
 /// `a - b`, returns `((a - b).fold(0, bit_or), overflow)`.

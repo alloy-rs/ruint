@@ -1,4 +1,7 @@
-use crate::{Uint, utils::select_unpredictable_u32};
+use crate::{
+    Uint,
+    utils::{select_unpredictable_u32, select_unpredictable_u64},
+};
 use core::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
     ShrAssign,
@@ -28,13 +31,6 @@ const fn funnel_shl(hi: u64, lo: u64, s: u32) -> u64 {
 #[inline(always)]
 const fn funnel_shr(hi: u64, lo: u64, s: u32) -> u64 {
     ((((hi as u128) << 64) | lo as u128) >> s) as u64
-}
-
-/// Branchless `if c { a } else { b }`, which compiles to a conditional move.
-#[inline(always)]
-const fn select(c: bool, a: u64, b: u64) -> u64 {
-    let mask = 0u64.wrapping_sub(c as u64);
-    (a & mask) | (b & !mask)
 }
 
 impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
@@ -718,7 +714,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 } else {
                     (rhs >= BITS, 0)
                 };
-                v[t + 1][i] = select(c, from, v[t][i]);
+                v[t + 1][i] = select_unpredictable_u64(c, from, v[t][i]);
             });
         });
         Self::from_limbs_unmasked(v[Self::SHIFT_STAGES + 1])
@@ -744,7 +740,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
                 } else {
                     (rhs >= BITS, fill)
                 };
-                v[t + 1][i] = select(c, from, v[t][i]);
+                v[t + 1][i] = select_unpredictable_u64(c, from, v[t][i]);
             });
         }
         Self::from_limbs_unmasked(v[Self::SHIFT_STAGES + 1])
