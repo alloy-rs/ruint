@@ -83,9 +83,17 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
     let divisor = divisor << shift;
     let reciprocal = unsafe { reciprocal(divisor) };
 
-    let last = limbs[limbs.len() - 1];
+    let mut len = limbs.len();
+    let last = limbs[len - 1];
     let mut remainder = last >> (64 - shift);
-    for i in (1..limbs.len()).rev() {
+    if len > 1 && last < divisor >> shift {
+        // The highest quotient limb is zero, and the highest shifted limb is
+        // the remainder.
+        remainder = (last << shift) | (limbs[len - 2] >> (64 - shift));
+        limbs[len - 1] = 0;
+        len -= 1;
+    }
+    for i in (1..len).rev() {
         // Shift limbs
         let upper = limbs[i];
         let lower = limbs[i - 1];
@@ -126,12 +134,17 @@ pub unsafe fn div_nx2_normalized(u: &mut [u64], d: u128) -> u128 {
 
     // SAFETY: d >= 2**127 - propagated to this function.
     let v = unsafe { reciprocal_2(d) };
-    let mut remainder: u128 = 0;
+    // The highest limb is less than `d`, so its quotient limb is zero.
+    let Some((last, u)) = u.split_last_mut() else {
+        return 0;
+    };
+    let mut remainder = u128::from(core::mem::take(last));
     for u in u.iter_mut().rev() {
         // SAFETY:
         // div_3x2 COUs:
         // - d >= 2**127 - propagated to this function.
-        // - remainder < d - initially 0, then follows from div_3x2 correctness.
+        // - remainder < d - initially the highest limb, then follows from
+        //   div_3x2 correctness.
         // - v = reciprocal_2(d) - calculated above
         let (q, r) = unsafe { div_3x2(remainder, *u, d, v) };
         *u = q;
@@ -168,9 +181,24 @@ pub unsafe fn div_nx2(limbs: &mut [u64], divisor: u128) -> u128 {
     let divisor = divisor << shift;
     let reciprocal = unsafe { reciprocal_2(divisor) };
 
-    let last = limbs[limbs.len() - 1];
-    let mut remainder: u128 = u128::from(last >> (64 - shift));
-    for i in (1..limbs.len()).rev() {
+    // The quotient has one limb less than the numerator, so the highest
+    // quotient limb is zero and the two highest shifted limbs are the first
+    // remainder.
+    let len = limbs.len();
+    let last = limbs[len - 1];
+    let mut remainder = DW::join(
+        last >> (64 - shift),
+        if len > 1 {
+            (last << shift) | (limbs[len - 2] >> (64 - shift))
+        } else {
+            last << shift
+        },
+    );
+    limbs[len - 1] = 0;
+    if len == 1 {
+        return remainder >> shift;
+    }
+    for i in (1..len - 1).rev() {
         // Shift limbs
         let upper = limbs[i];
         let lower = limbs[i - 1];
