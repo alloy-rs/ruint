@@ -13,12 +13,20 @@ use ark_ff_06::{
 
 // BigInt
 
+/// # Panics
+///
+/// Panics if the value does not fit in `BITS` bits, which can only happen when
+/// `BITS` is less than `LIMBS * 64`.
 impl<const BITS: usize, const LIMBS: usize> From<BigInt<LIMBS>> for Uint<BITS, LIMBS> {
     fn from(value: BigInt<LIMBS>) -> Self {
         Self::from_limbs(value.0)
     }
 }
 
+/// # Panics
+///
+/// Panics if the value does not fit in `BITS` bits, which can only happen when
+/// `BITS` is less than `LIMBS * 64`.
 impl<const BITS: usize, const LIMBS: usize> From<&BigInt<LIMBS>> for Uint<BITS, LIMBS> {
     fn from(value: &BigInt<LIMBS>) -> Self {
         Self::from_limbs(value.0)
@@ -39,6 +47,10 @@ impl<const BITS: usize, const LIMBS: usize> From<&Uint<BITS, LIMBS>> for BigInt<
 
 // Fp
 
+/// # Panics
+///
+/// Panics if the field element does not fit in `BITS` bits, which cannot happen
+/// when the modulus of `P` fits in `BITS` bits.
 impl<P: FpConfig<LIMBS>, const BITS: usize, const LIMBS: usize> From<Fp<P, LIMBS>>
     for Uint<BITS, LIMBS>
 {
@@ -47,6 +59,10 @@ impl<P: FpConfig<LIMBS>, const BITS: usize, const LIMBS: usize> From<Fp<P, LIMBS
     }
 }
 
+/// # Panics
+///
+/// Panics if the field element does not fit in `BITS` bits, which cannot happen
+/// when the modulus of `P` fits in `BITS` bits.
 impl<P: FpConfig<LIMBS>, const BITS: usize, const LIMBS: usize> From<&Fp<P, LIMBS>>
     for Uint<BITS, LIMBS>
 {

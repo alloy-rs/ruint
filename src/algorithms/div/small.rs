@@ -245,7 +245,6 @@ pub fn div_2x1_mg10(u: u128, d: u64, v: u64) -> (u64, u64) {
 
 /// ⚠️ Reference implementation for `div_3x2`.
 #[doc = crate::algorithms::unstable_warning!()]
-/// TODO: This implementation is off by one.
 #[inline]
 #[must_use]
 pub fn div_3x2_ref(n21: u128, n0: u64, d: u128) -> u64 {
@@ -265,7 +264,8 @@ pub fn div_3x2_ref(n21: u128, n0: u64, d: u128) -> u64 {
         // in one or two times the divisor to make the remainder positive.
         // (It can not be more since the divisor is > 2^127 and the negated
         // remainder is < 2^128.)
-        let neg_remainder = u128::from(d0).wrapping_sub((u128::from(n1) << 64) | u128::from(n0));
+        let neg_remainder =
+            (u128::from(d0) << 64).wrapping_sub((u128::from(n1) << 64) | u128::from(n0));
         if neg_remainder > d {
             0xffff_ffff_ffff_fffe_u64
         } else {
@@ -276,14 +276,14 @@ pub fn div_3x2_ref(n21: u128, n0: u64, d: u128) -> u64 {
         let (mut q, mut r) = div_2x1_ref(n21, d1);
 
         let t1 = u128::from(q) * u128::from(d0);
-        let t2 = (u128::from(n0) << 64) | u128::from(r);
+        let t2 = (u128::from(r) << 64) | u128::from(n0);
         if t1 > t2 {
             q -= 1;
             r = r.wrapping_add(d1);
             let overflow = r < d1;
             if !overflow {
                 let t1 = u128::from(q) * u128::from(d0);
-                let t2 = (u128::from(n0) << 64) | u128::from(r);
+                let t2 = (u128::from(r) << 64) | u128::from(n0);
                 if t1 > t2 {
                     q -= 1;
                     // UNUSED: r += d[1];
@@ -338,7 +338,7 @@ mod tests {
     use proptest::{
         collection,
         num::{u64, u128},
-        prop_assume, proptest,
+        prop_assume, prop_oneof, proptest,
         strategy::Strategy,
     };
 
@@ -353,10 +353,10 @@ mod tests {
         });
     }
 
-    #[ignore = "TODO"]
     #[test]
     fn test_div_3x2_ref() {
-        proptest!(|(q: u64, r: u128, mut d: u128)| {
+        let q = prop_oneof![u64::ANY, 0xffff_ffff_ffff_fffe_u64..];
+        proptest!(|(q in q, r: u128, mut d: u128)| {
             let d = d | (1 << 127);
             let r = r % d;
             let (n21, n0) = {
