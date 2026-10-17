@@ -39,7 +39,6 @@ mod valuable;
 mod zeroize;
 
 // FEATURE: Support for many more traits and crates.
-// * https://crates.io/crates/der
 // * https://crates.io/crates/bitvec
 
 // * open-fastrlp

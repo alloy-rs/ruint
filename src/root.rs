@@ -61,9 +61,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         loop {
             // OPT: This could benefit from single-limb multiplication
             // and division.
-            //
-            // OPT: The division can be turned into bit-shifts when the degree
-            // is a power of two.
             let division = result
                 .checked_pow(deg_m1)
                 .map_or(Self::ZERO, |power| self / power);

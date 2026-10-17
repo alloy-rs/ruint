@@ -37,7 +37,6 @@ pub const fn div_1x1(numerator: u64, divisor: u64) -> (u64, u64) {
 /// [MG10]: https://gmplib.org/~tege/division-paper.pdf
 #[inline(always)]
 pub unsafe fn div_nx1_normalized(u: &mut [u64], d: u64) -> u64 {
-    // OPT: Version with in-place shifting of `u`
     debug_assert!(d >= (1 << 63));
 
     // SAFETY: COU propagated to this function.
@@ -121,7 +120,6 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
 /// may panic or trigger UB if any condition of use is violated.
 #[inline(always)]
 pub unsafe fn div_nx2_normalized(u: &mut [u64], d: u128) -> u128 {
-    // OPT: Version with in-place shifting of `u`
     debug_assert!(d >= (1 << 127));
 
     // SAFETY: d >= 2**127 - propagated to this function.

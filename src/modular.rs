@@ -1,9 +1,8 @@
 use crate::{Uint, algorithms};
 
-// FEATURE: sub_mod, neg_mod, inv_mod, div_mod, root_mod
+// FEATURE: sub_mod, neg_mod, div_mod, root_mod
 // See <https://en.wikipedia.org/wiki/Cipolla's_algorithm>
-// FEATURE: mul_mod_redc
-// and maybe barrett
+// FEATURE: Barrett reduction
 // See also <https://static1.squarespace.com/static/61f7cacf2d7af938cad5b81c/t/62deb4e0c434f7134c2730ee/1658762465114/modular_multiplication.pdf>
 // FEATURE: Modular wrapper class, like Wrapping.
 
