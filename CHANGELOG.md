@@ -37,9 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove redundant homepage metadata to avoid Cargo manifest warnings ([#662])
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 - `f32::from(&Uint)` rounds once to 24 bits instead of through `f64`, so it is correctly rounded ([#652])
+- `ark-ff`: Document that the 0.4, 0.5 and 0.6 `From<BigInt>` and `From<Fp>` impls for `Uint` panic when the value does not fit in `BITS` bits ([#665])
 
 [#642]: https://github.com/alloy-rs/ruint/pull/642
 [#652]: https://github.com/alloy-rs/ruint/pull/652
+[#665]: https://github.com/alloy-rs/ruint/pull/665
 
 [#662]: https://github.com/alloy-rs/ruint/pull/662
 
