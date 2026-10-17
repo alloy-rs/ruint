@@ -147,6 +147,19 @@ cmp_fns! {
 #[inline]
 fn borrows(a: &[u64], b: &[u64]) -> bool {
     assume!(a.len() == b.len());
+    #[cfg(target_arch = "x86_64")]
+    {
+        sub_x86_64(a, b).1
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        borrows_fallback(a, b)
+    }
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+#[inline]
+fn borrows_fallback(a: &[u64], b: &[u64]) -> bool {
     let mut borrow = false;
     for i in 0..a.len() {
         (_, borrow) = borrowing_sub(a[i], b[i], borrow);

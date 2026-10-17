@@ -112,11 +112,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub fn is_zero(&self) -> bool {
-        let mut acc = 0;
-        for limb in &self.limbs {
-            acc |= limb;
-        }
-        acc == 0
+        // Folding a few limbs at a time keeps small sizes branchless and lets
+        // large ones stop at the first nonzero chunk.
+        self.limbs
+            .chunks(8)
+            .all(|chunk| chunk.iter().fold(0, |acc, limb| acc | limb) == 0)
     }
 
     /// Returns `true` if the value is zero.

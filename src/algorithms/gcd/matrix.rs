@@ -35,7 +35,7 @@ impl Matrix {
 
     /// ⚠️ Applies the matrix to a `Uint`.
     #[doc = crate::algorithms::unstable_warning!()]
-    #[inline]
+    #[inline(always)]
     pub fn apply<const BITS: usize, const LIMBS: usize>(
         &self,
         a: &mut Uint<BITS, LIMBS>,
