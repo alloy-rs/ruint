@@ -151,24 +151,24 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
 /// than 32 bits.
 #[inline(always)]
 fn div_nxn(numerator: &mut [u64], divisor: &mut [u64]) -> bool {
-    let n = divisor.len();
-    debug_assert!(n >= 2 && numerator.len() == n);
+    // The caller checked that the lengths match, so this is free, and it lets
+    // LLVM see that both slices have length `n`.
+    let n = numerator.len();
+    let divisor = &mut divisor[..n];
+    let (&[.., u0, u1], &[.., d0, d1]) = (&*numerator, &*divisor) else {
+        unreachable!()
+    };
     debug_assert!(!super::lt(numerator, divisor));
     // `numerator >= divisor`, so it has at most as many leading zeros.
-    let shift = numerator[n - 1].leading_zeros();
-    if divisor[n - 1].leading_zeros() - shift >= 32 {
+    let shift = u1.leading_zeros();
+    if d1.leading_zeros() - shift >= 32 {
         return false;
     }
-    let top = |x: &[u64]| {
-        if shift == 0 {
-            x[n - 1]
-        } else {
-            (x[n - 1] << shift) | (x[n - 2] >> (64 - shift))
-        }
-    };
+    let a = DW::high(DW::join(u1, u0) << shift);
+    let b = DW::high(DW::join(d1, d0) << shift);
     // The divisor's top limb has at least 32 significant bits, so rounding it
     // up makes the estimate at most two too small, and never too large.
-    let mut q = top(numerator) / top(divisor).saturating_add(1);
+    let mut q = a / b.saturating_add(1);
     // SAFETY: Both slices have length `n`.
     let borrow = unsafe { submul_nx1(numerator, divisor, q) };
     debug_assert_eq!(borrow, 0);
