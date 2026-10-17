@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `div_3x2_ref` returns the correct quotient
 - Remove redundant homepage metadata to avoid Cargo manifest warnings ([#662])
 - `num-traits`: `ToPrimitive::to_f32`/`to_f64` and `FromPrimitive::from_f32`/`from_f64` no longer return `None` for values outside the `u64` range ([#642])
 - `f32::from(&Uint)` rounds once to 24 bits instead of through `f64`, so it is correctly rounded ([#652])
