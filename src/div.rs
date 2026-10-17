@@ -90,7 +90,31 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
 
     #[inline(never)]
     pub(crate) fn div_rem_by_ref(numerator: &mut Self, rhs: &mut Self) {
-        algorithms::div::div_inlined(&mut numerator.limbs, &mut rhs.limbs);
+        Self::div_rem_inlined(numerator, rhs);
+    }
+
+    /// Like [`div_rem_by_ref`](Self::div_rem_by_ref), but discards the
+    /// quotient, which lets the compiler skip computing it in the fast paths.
+    #[inline(never)]
+    fn rem_by_ref(mut numerator: Self, rhs: &mut Self) {
+        Self::div_rem_inlined(&mut numerator, rhs);
+    }
+
+    #[inline(always)]
+    fn div_rem_inlined(numerator: &mut Self, rhs: &mut Self) {
+        if *numerator < *rhs {
+            *rhs = core::mem::replace(numerator, Self::ZERO);
+        } else if numerator.limbs[1..].iter().all(|&x| x == 0) {
+            // `rhs <= numerator`, so both fit in a limb.
+            (numerator.limbs[0], rhs.limbs[0]) =
+                algorithms::div::div_1x1(numerator.limbs[0], rhs.limbs[0]);
+        } else if rhs.is_power_of_two() {
+            let remainder = *numerator & rhs.wrapping_sub(Self::ONE);
+            *numerator >>= rhs.trailing_zeros();
+            *rhs = remainder;
+        } else {
+            algorithms::div::div_inlined(&mut numerator.limbs, &mut rhs.limbs);
+        }
     }
 
     /// Computes `self / rhs` rounding down.
@@ -113,8 +137,12 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     #[track_caller]
-    pub fn wrapping_rem(self, rhs: Self) -> Self {
-        self.div_rem(rhs).1
+    pub fn wrapping_rem(self, mut rhs: Self) -> Self {
+        if LIMBS == 1 {
+            return self.div_rem(rhs).1;
+        }
+        Self::rem_by_ref(self, &mut rhs);
+        rhs
     }
 }
 
@@ -175,6 +203,19 @@ mod tests {
                 let (q, r) = n.div_rem(d);
                 assert!(r < d);
                 assert_eq!(q * d + r, n);
+            });
+            proptest!(|(n: U, d: U, n_shift in 0..BITS, d_shift in 0..BITS)| {
+                // Vary the operand sizes, and cover power of two divisors.
+                let n = n >> n_shift;
+                for d in [d >> d_shift, U::ONE << d_shift] {
+                    if d.is_zero() {
+                        continue;
+                    }
+                    let (q, r) = n.div_rem(d);
+                    assert!(r < d);
+                    assert_eq!(q * d + r, n);
+                    assert_eq!(n % d, r);
+                }
             });
         });
     }
