@@ -303,8 +303,6 @@ impl Matrix {
     /// end. This requires 8 additional multiplications, but allows us to use
     /// the tighter stopping conditions from Jebelean. It also seems the
     /// simplest out of these solutions.
-    // OPT: We can update r0 and r1 in place. This won't remove the partially
-    // redundant call to lehmer_update, but it reduces memory usage.
     #[inline]
     #[must_use]
     pub fn from_u128_prefix(r0: u128, r1: u128) -> Self {
