@@ -41,8 +41,6 @@ mod zeroize;
 // FEATURE: Support for many more traits and crates.
 // * https://crates.io/crates/bitvec
 
-// * open-fastrlp
-
 // Big int types:
 // * https://crates.io/crates/crypto-bigint
 // * https://crates.io/crates/rug
