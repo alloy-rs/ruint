@@ -263,10 +263,9 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
             q
         } else {
             // Overflow case
-            let q = u64::MAX;
             // SAFETY: both slices have length `n`.
-            let _carry = unsafe { submul_nx1(&mut numerator[j..j + n], divisor, q) };
-            q
+            unsafe { submul_max(&mut numerator[j..j + n], divisor) };
+            u64::MAX
         };
 
         // Store the quotient in the processed bits of numerator plus `q_high`.
@@ -282,6 +281,23 @@ pub unsafe fn div_nxm(numerator: &mut [u64], divisor: &mut [u64]) {
     numerator.copy_within(n.., 0);
     numerator[m] = q_high;
     numerator[m + 1..].fill(0);
+}
+
+/// Subtracts `divisor * u64::MAX` from `numerator`, for the rare quotient
+/// overflow case in [`div_nxm`].
+///
+/// Kept out of line, because when the divisor length is a constant LLVM
+/// hoists the products out of the quotient loop and computes them for every
+/// division.
+///
+/// # Safety
+///
+/// `numerator.len()` must equal `divisor.len()`.
+#[cold]
+#[inline(never)]
+unsafe fn submul_max(numerator: &mut [u64], divisor: &[u64]) {
+    // SAFETY: Propagated to the caller.
+    unsafe { submul_nx1(numerator, divisor, u64::MAX) };
 }
 
 #[cfg(test)]
