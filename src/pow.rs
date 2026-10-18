@@ -141,11 +141,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// the check cheap for other bases.
     #[inline]
     const fn is_small_power_of_two(&self) -> bool {
-        let mut high = 0;
+        if !self.limbs[0].is_power_of_two() {
+            return false;
+        }
+        // Stop at the first nonzero limb: folding them all keeps every limb
+        // of a large `self` live and spills it.
         const_range_for!(i in 1..LIMBS => {
-            high |= self.limbs[i];
+            if self.limbs[i] != 0 {
+                return false;
+            }
         });
-        high == 0 && self.limbs[0].is_power_of_two()
+        true
     }
 
     /// Raises `self = 2^k < 2^64` to the power of `exp` as a shift by
