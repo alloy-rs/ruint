@@ -1335,25 +1335,20 @@ mod tests {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint<BITS, LIMBS>;
             proptest!(|(value: U, shift in 0..=BITS + 130)| {
-                // Shifts by `shift < BITS` multiply or divide by `2^shift`.
-                let (shl, shr) = if shift < BITS {
-                    let mut pow = U::ZERO;
-                    pow.set_bit(shift, true);
-                    let (quotient, remainder) = value.div_rem(pow);
-                    (value.overflowing_mul(pow), (quotient, !remainder.is_zero()))
-                } else {
-                    ((U::ZERO, !value.is_zero()), (U::ZERO, !value.is_zero()))
-                };
-                assert_eq!(value.overflowing_shl(shift), shl);
-                assert_eq!(value.overflowing_shr(shift), shr);
-                assert_eq!(value.wrapping_shl(shift), shl.0);
-                assert_eq!(value.wrapping_shr(shift), shr.0);
-                let fill = if value.bit(BITS - 1) {
-                    !(U::MAX >> shift)
-                } else {
-                    U::ZERO
-                };
-                assert_eq!(value.arithmetic_shr(shift), shr.0 | fill);
+                // Build the expected results bit by bit, without any shifts.
+                let (mut shl, mut shr, mut sar) = (U::ZERO, U::ZERO, U::ZERO);
+                for i in 0..BITS {
+                    shl.set_bit(i, i >= shift && value.bit(i - shift));
+                    shr.set_bit(i, i + shift < BITS && value.bit(i + shift));
+                    sar.set_bit(i, value.bit((i + shift).min(BITS - 1)));
+                }
+                let shl_lost = (BITS.saturating_sub(shift)..BITS).any(|i| value.bit(i));
+                let shr_lost = (0..shift.min(BITS)).any(|i| value.bit(i));
+                assert_eq!(value.overflowing_shl(shift), (shl, shl_lost));
+                assert_eq!(value.overflowing_shr(shift), (shr, shr_lost));
+                assert_eq!(value.wrapping_shl(shift), shl);
+                assert_eq!(value.wrapping_shr(shift), shr);
+                assert_eq!(value.arithmetic_shr(shift), sar);
             });
             assert_eq!(U::MAX.wrapping_shl(usize::MAX), U::ZERO);
             assert_eq!(U::MAX.wrapping_shr(usize::MAX), U::ZERO);
