@@ -115,7 +115,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub const fn wrapping_pow(self, exp: Self) -> Self {
+    pub const fn wrapping_pow(mut self, mut exp: Self) -> Self {
         if BITS == 0 {
             return self;
         }
@@ -124,17 +124,15 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
 
         // Exponentiation by squaring
-        let mut base = self;
-        let mut exp = exp;
         let mut result = Self::ONE;
         while !exp.const_is_zero() {
             // Multiply by base
             if exp.bit(0) {
-                result = result.wrapping_mul(base);
+                result = result.wrapping_mul(self);
             }
 
             // Square base
-            base = base.wrapping_mul(base);
+            self = self.wrapping_mul(self);
             exp = exp.wrapping_shr(1);
         }
         result
