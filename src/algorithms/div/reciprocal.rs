@@ -97,7 +97,11 @@ pub unsafe fn reciprocal_mg10(d: u64) -> u64 {
     let v2 = (v1 << 13) + ((v1 * ((ONE << 60) - v1 * d40)) >> 47);
     let e = ((v2 >> 1) & (ZERO - d0)) - v2 * d63;
     let v3 = (mul_hi(v2, e) >> 1) + (v2 << 31);
-    let v4 = v3 - muladd_hi(v3, d, d) - d;
+    // `v3 * d + d` with an explicit carry. Through `muladd_hi`, LLVM computes
+    // `(v3 + 1) * d` instead and fixes up the overflow of `v3 + 1`.
+    let (lo, hi) = DW::split(DW::mul(v3.0, d.0));
+    let carry = Wrapping(u64::from(lo.overflowing_add(d.0).1));
+    let v4 = v3 - Wrapping(hi) - carry - d;
 
     v4.0
 }
@@ -179,12 +183,6 @@ pub fn checked_reciprocal_2_mg10(d: u128) -> Option<u64> {
 #[must_use]
 fn mul_hi(a: Wrapping<u64>, b: Wrapping<u64>) -> Wrapping<u64> {
     Wrapping(DW::high(DW::mul(a.0, b.0)))
-}
-
-#[inline(always)]
-#[must_use]
-fn muladd_hi(a: Wrapping<u64>, b: Wrapping<u64>, c: Wrapping<u64>) -> Wrapping<u64> {
-    Wrapping(DW::high(DW::muladd(a.0, b.0, c.0)))
 }
 
 #[cfg(test)]
