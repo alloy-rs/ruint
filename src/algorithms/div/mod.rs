@@ -124,6 +124,10 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
     if numerator.len() == divisor.len() && divisor.len() > 1 && div_nxn(numerator, divisor) {
         return;
     }
+    if numerator.len() == divisor.len() + 1 && divisor.len() >= 3 {
+        div_n1xn(numerator, divisor);
+        return;
+    }
 
     match divisor {
         [divisor] => {
@@ -196,6 +200,51 @@ fn div_nxn(numerator: &mut [u64], divisor: &mut [u64]) -> bool {
     }
     numerator[0] = q;
     true
+}
+
+/// Divides a numerator one limb longer than a divisor of at least three limbs,
+/// so the quotient fits in two limbs.
+///
+/// Two [`div_3x2`] steps on the normalized top limbs estimate the quotient,
+/// which is at most two too large, and the remainder is computed on the
+/// unnormalized operands, so unlike [`div_nxm`] nothing is shifted or copied
+/// around.
+#[inline(always)]
+fn div_n1xn(numerator: &mut [u64], divisor: &mut [u64]) {
+    let n = divisor.len();
+    let numerator = &mut numerator[..n + 1];
+    let (&[.., u0, u1, u2, u3], &[.., d0, d1, d2]) = (&*numerator, &*divisor) else {
+        unreachable!()
+    };
+    let shift = d2.leading_zeros();
+    let top = |hi: u64, lo: u64| DW::high(DW::join(hi, lo) << shift);
+    let d = DW::join(top(d2, d1), top(d1, d0));
+    // SAFETY: `d` is normalized.
+    let v = unsafe { reciprocal_2(d) };
+    // SAFETY: The highest shifted numerator limb holds at most `shift` bits,
+    // so it is smaller than the highest divisor limb.
+    let (q1, r) = unsafe { div_3x2(DW::join(top(0, u3), top(u3, u2)), top(u2, u1), d, v) };
+    // SAFETY: `r < d`.
+    let (q0, _) = unsafe { div_3x2(r, top(u1, u0), d, v) };
+    let mut q = DW::join(q1, q0);
+    // SAFETY: Both slices have length `n`.
+    let borrow = unsafe { submul_nx1(&mut numerator[..n], divisor, q0) };
+    let (high, borrow) = numerator[n].overflowing_sub(borrow);
+    numerator[n] = high;
+    // SAFETY: Both slices have length `n`.
+    let mut negative = borrow | (unsafe { submul_nx1(&mut numerator[1..], divisor, q1) } != 0);
+    // Add the divisor back until the remainder wraps around to non-negative.
+    while negative {
+        q -= 1;
+        let carry = carrying_add_n(&mut numerator[..n], divisor, false);
+        let (high, carry) = numerator[n].overflowing_add(u64::from(carry));
+        numerator[n] = high;
+        negative = !carry;
+    }
+    debug_assert_eq!(numerator[n], 0);
+    divisor.copy_from_slice(&numerator[..n]);
+    numerator.fill(0);
+    (numerator[0], numerator[1]) = DW::split(q);
 }
 
 #[cfg(test)]
