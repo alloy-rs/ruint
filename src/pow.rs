@@ -64,7 +64,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn overflowing_pow(self, exp: Self) -> (Self, bool) {
+    pub const fn overflowing_pow(mut self, mut exp: Self) -> (Self, bool) {
         if BITS == 0 {
             return (self, false);
         }
@@ -72,30 +72,26 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp);
         }
 
-        // Square and multiply from the bottom bit of `exp` up, skipping the
-        // final squaring. Each squaring feeds the multiplication by the top
-        // bit, so the result overflows exactly when any step does.
-        let bits = exp.bit_len();
-        if bits == 0 {
-            return (Self::ONE, false);
-        }
+        // Exponentiation by squaring, skipping the final squaring. Each
+        // squaring feeds a later multiplication, so the result overflows
+        // exactly when any step does.
         let mut result = Self::ONE;
-        let mut base = self;
         let mut overflow = false;
-        let mut i = 0;
-        while i < bits - 1 {
-            if exp.bit(i) {
-                let (r, o) = result.overflowing_mul(base);
+        loop {
+            if exp.bit(0) {
+                let (r, o) = result.overflowing_mul(self);
                 result = r;
                 overflow |= o;
             }
-            let (b, o) = base.overflowing_mul(base);
-            base = b;
+            exp = exp.wrapping_shr(1);
+            if exp.const_is_zero() {
+                break;
+            }
+            let (s, o) = self.overflowing_mul(self);
+            self = s;
             overflow |= o;
-            i += 1;
         }
-        let (r, o) = result.overflowing_mul(base);
-        (r, overflow | o)
+        (result, overflow)
     }
 
     /// Raises self to the power of `exp`, wrapping around on overflow.
@@ -118,7 +114,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub const fn wrapping_pow(self, exp: Self) -> Self {
+    pub const fn wrapping_pow(mut self, mut exp: Self) -> Self {
         if BITS == 0 {
             return self;
         }
@@ -126,23 +122,19 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp).0;
         }
 
-        // Square and multiply from the bottom bit of `exp` up, skipping the
-        // final squaring.
-        let bits = exp.bit_len();
-        if bits == 0 {
-            return Self::ONE;
-        }
+        // Exponentiation by squaring, skipping the final squaring.
         let mut result = Self::ONE;
-        let mut base = self;
-        let mut i = 0;
-        while i < bits - 1 {
-            if exp.bit(i) {
-                result = result.wrapping_mul(base);
+        loop {
+            if exp.bit(0) {
+                result = result.wrapping_mul(self);
             }
-            base = base.wrapping_mul(base);
-            i += 1;
+            exp = exp.wrapping_shr(1);
+            if exp.const_is_zero() {
+                break;
+            }
+            self = self.wrapping_mul(self);
         }
-        result.wrapping_mul(base)
+        result
     }
 
     /// Raises `self = 2^k` to the power of `exp` as a shift by `k * exp`, and
