@@ -68,7 +68,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return (self, false);
         }
-        if self.is_power_of_two() {
+        if self.is_small_power_of_two() {
             return self.pow_power_of_two(exp);
         }
 
@@ -117,7 +117,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if BITS == 0 {
             return self;
         }
-        if self.is_power_of_two() {
+        if self.is_small_power_of_two() {
             return self.pow_power_of_two(exp).0;
         }
 
@@ -136,10 +136,20 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         result
     }
 
-    /// Raises `self = 2^k` to the power of `exp` as a shift by `k * exp`, and
-    /// returns whether the result overflowed.
-    ///
-    /// Most EVM `EXP` calls raise 256 or 2 to a small power.
+    /// Whether `self` is a power of two below `2^64`, like the 256 and 2 that
+    /// most EVM `EXP` calls raise to a small power. Testing one limb keeps
+    /// the check cheap for other bases.
+    #[inline]
+    const fn is_small_power_of_two(&self) -> bool {
+        let mut high = 0;
+        const_range_for!(i in 1..LIMBS => {
+            high |= self.limbs[i];
+        });
+        high == 0 && self.limbs[0].is_power_of_two()
+    }
+
+    /// Raises `self = 2^k < 2^64` to the power of `exp` as a shift by
+    /// `k * exp`, and returns whether the result overflowed.
     #[inline]
     const fn pow_power_of_two(self, exp: Self) -> (Self, bool) {
         // Exponents of `BITS` or more overflow for every base above one.
@@ -152,7 +162,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         } else {
             BITS
         };
-        let shift = exp.saturating_mul(self.trailing_zeros());
+        let shift = exp.saturating_mul(self.limbs[0].trailing_zeros() as usize);
         (Self::ONE.wrapping_shl(shift), shift >= BITS)
     }
 
