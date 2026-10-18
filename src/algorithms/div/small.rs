@@ -72,6 +72,20 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
     debug_assert!(!limbs.is_empty());
     debug_assert!(*limbs.last().unwrap() != 0);
 
+    #[cfg(target_arch = "x86_64")]
+    {
+        let (mut remainder, limbs) = match limbs {
+            [rest @ .., last] if *last < divisor => (core::mem::take(last), rest),
+            _ => (0, limbs),
+        };
+        for limb in limbs.iter_mut().rev() {
+            // SAFETY: `remainder < divisor`.
+            (*limb, remainder) = unsafe { div_2x1_x86_64(remainder, *limb, divisor) };
+        }
+        return remainder;
+    }
+
+    #[allow(unreachable_code)]
     let limbs = UncheckedSlice::wrap_mut(limbs);
 
     // Normalize and compute reciprocal
@@ -114,6 +128,30 @@ pub unsafe fn div_nx1(limbs: &mut [u64], divisor: u64) -> u64 {
 
     // Un-normalize remainder
     remainder >> shift
+}
+
+/// Divides `hi:lo` by `d` with the x86-64 `div` instruction, returning the
+/// quotient and remainder.
+///
+/// # Safety
+///
+/// - `hi < d`, so the quotient fits in 64 bits.
+#[cfg(target_arch = "x86_64")]
+#[inline(always)]
+pub(super) unsafe fn div_2x1_x86_64(hi: u64, lo: u64, d: u64) -> (u64, u64) {
+    debug_assert!(hi < d);
+    let q: u64;
+    let r: u64;
+    unsafe {
+        core::arch::asm!(
+            "div {d}",
+            d = in(reg) d,
+            inout("rax") lo => q,
+            inout("rdx") hi => r,
+            options(pure, nomem, nostack),
+        );
+    }
+    (q, r)
 }
 
 /// ⚠️ Compute double limb normalized division.
