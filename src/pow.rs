@@ -72,24 +72,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp);
         }
 
-        // Exponentiation by squaring, skipping the final squaring. Each
-        // squaring feeds a later multiplication, so the result overflows
-        // exactly when any step does.
-        let mut result = Self::ONE;
+        // Exponentiation by squaring
         let mut overflow = false;
-        loop {
+        let mut base_overflow = false;
+        let mut result = Self::ONE;
+        while !exp.const_is_zero() {
+            // Multiply by base
             if exp.bit(0) {
                 let (r, o) = result.overflowing_mul(self);
                 result = r;
-                overflow |= o;
+                overflow |= o | base_overflow;
             }
-            exp = exp.wrapping_shr(1);
-            if exp.const_is_zero() {
-                break;
-            }
+
+            // Square base
             let (s, o) = self.overflowing_mul(self);
             self = s;
-            overflow |= o;
+            base_overflow |= o;
+            exp = exp.wrapping_shr(1);
         }
         (result, overflow)
     }
@@ -122,17 +121,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp).0;
         }
 
-        // Exponentiation by squaring, skipping the final squaring.
+        // Exponentiation by squaring
         let mut result = Self::ONE;
-        loop {
+        while !exp.const_is_zero() {
+            // Multiply by base
             if exp.bit(0) {
                 result = result.wrapping_mul(self);
             }
-            exp = exp.wrapping_shr(1);
-            if exp.const_is_zero() {
-                break;
-            }
+
+            // Square base
             self = self.wrapping_mul(self);
+            exp = exp.wrapping_shr(1);
         }
         result
     }
