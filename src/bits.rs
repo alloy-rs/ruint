@@ -427,6 +427,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub const fn overflowing_shl(self, rhs: usize) -> (Self, bool) {
+        if Self::SHIFT_SELECT {
+            // Set bits are lost exactly when the top one moves out.
+            let lost = self.leading_zeros() < if rhs < BITS { rhs } else { BITS };
+            return (self.shl_select(rhs), lost);
+        }
         let (limbs, bits) = (rhs / 64, rhs % 64);
         if limbs >= LIMBS {
             return (Self::ZERO, !self.const_is_zero());
@@ -448,24 +453,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         // we also need to know if the top limb is dirty before masking
         carry |= r.maskable_bits();
         (r.masked(), carry != 0)
-    }
-
-    /// Left shift by `rhs` bits with overflow detection, but with `Self` rhs.
-    ///
-    /// See [`overflowing_shl`](Self::overflowing_shl) for details.
-    #[inline]
-    pub(crate) fn overflowing_shl_big(self, rhs: Self) -> (Self, bool) {
-        if BITS == 0 {
-            return (Self::ZERO, false);
-        }
-        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
-        // so the entire value is shifted out. The conversion is
-        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
-        // truncate on 32-bit targets (where `usize` is narrower than `u64`).
-        let Ok(rhs) = usize::try_from(rhs) else {
-            return (Self::ZERO, !self.const_is_zero());
-        };
-        self.overflowing_shl(rhs)
     }
 
     /// Left shift by `rhs` bits.
@@ -553,6 +540,11 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     #[inline]
     #[must_use]
     pub const fn overflowing_shr(self, rhs: usize) -> (Self, bool) {
+        if Self::SHIFT_SELECT {
+            // Set bits are lost exactly when the bottom one moves out.
+            let lost = self.trailing_zeros() < if rhs < BITS { rhs } else { BITS };
+            return (self.shr_select(rhs, 0), lost);
+        }
         let (limbs, bits) = (rhs / 64, rhs % 64);
         if limbs >= LIMBS {
             return (Self::ZERO, !self.const_is_zero());
@@ -572,24 +564,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             carry |= self.limbs[i];
         });
         (r, carry != 0)
-    }
-
-    /// Right shift by `rhs` bits with underflow detection, but with `Self` rhs.
-    ///
-    /// See [`overflowing_shr`](Self::overflowing_shr) for details.
-    #[inline]
-    pub(crate) fn overflowing_shr_big(self, rhs: Self) -> (Self, bool) {
-        if BITS == 0 {
-            return (Self::ZERO, false);
-        }
-        // A shift amount that doesn't fit `usize` is `> usize::MAX >= BITS`,
-        // so the entire value is shifted out. The conversion is
-        // pointer-width-aware, so shift amounts in `[2^32, 2^64)` cannot
-        // truncate on 32-bit targets (where `usize` is narrower than `u64`).
-        let Ok(rhs) = usize::try_from(rhs) else {
-            return (Self::ZERO, !self.const_is_zero());
-        };
-        self.overflowing_shr(rhs)
     }
 
     /// Right shift by `rhs` bits.
@@ -857,7 +831,8 @@ impl<const BITS: usize, const LIMBS: usize> Shl<Self> for Uint<BITS, LIMBS> {
 
     #[inline(always)]
     fn shl(self, rhs: Self) -> Self::Output {
-        self.overflowing_shl_big(rhs).0
+        // Amounts that do not fit in usize shift out the entire value.
+        self.wrapping_shl(usize::try_from(rhs).unwrap_or(usize::MAX))
     }
 }
 
@@ -875,7 +850,8 @@ impl<const BITS: usize, const LIMBS: usize> Shr<Self> for Uint<BITS, LIMBS> {
 
     #[inline(always)]
     fn shr(self, rhs: Self) -> Self::Output {
-        self.overflowing_shr_big(rhs).0
+        // Amounts that do not fit in usize shift out the entire value.
+        self.wrapping_shr(usize::try_from(rhs).unwrap_or(usize::MAX))
     }
 }
 
@@ -1359,18 +1335,26 @@ mod tests {
             const LIMBS: usize = nlimbs(BITS);
             type U = Uint<BITS, LIMBS>;
             proptest!(|(value: U, shift in 0..=BITS + 130)| {
-                assert_eq!(value.wrapping_shl(shift), value.overflowing_shl(shift).0);
-                assert_eq!(value.wrapping_shr(shift), value.overflowing_shr(shift).0);
-                let fill = if value.bit(BITS - 1) {
-                    U::MAX.overflowing_shl(BITS.saturating_sub(shift)).0
-                } else {
-                    U::ZERO
-                };
-                assert_eq!(value.arithmetic_shr(shift), value.overflowing_shr(shift).0 | fill);
+                // Build the expected results bit by bit, without any shifts.
+                let (mut shl, mut shr, mut sar) = (U::ZERO, U::ZERO, U::ZERO);
+                for i in 0..BITS {
+                    shl.set_bit(i, i >= shift && value.bit(i - shift));
+                    shr.set_bit(i, i + shift < BITS && value.bit(i + shift));
+                    sar.set_bit(i, value.bit((i + shift).min(BITS - 1)));
+                }
+                let shl_lost = (BITS.saturating_sub(shift)..BITS).any(|i| value.bit(i));
+                let shr_lost = (0..shift.min(BITS)).any(|i| value.bit(i));
+                assert_eq!(value.overflowing_shl(shift), (shl, shl_lost));
+                assert_eq!(value.overflowing_shr(shift), (shr, shr_lost));
+                assert_eq!(value.wrapping_shl(shift), shl);
+                assert_eq!(value.wrapping_shr(shift), shr);
+                assert_eq!(value.arithmetic_shr(shift), sar);
             });
             assert_eq!(U::MAX.wrapping_shl(usize::MAX), U::ZERO);
             assert_eq!(U::MAX.wrapping_shr(usize::MAX), U::ZERO);
             assert_eq!(U::MAX.arithmetic_shr(usize::MAX), U::MAX);
+            assert_eq!(U::ZERO.overflowing_shl(BITS + 1), (U::ZERO, false));
+            assert_eq!(U::ZERO.overflowing_shr(BITS + 1), (U::ZERO, false));
         });
     }
 
@@ -1560,8 +1544,8 @@ mod tests {
 
     #[test]
     fn regression_overflowing_big() {
-        // The `_big` shift helpers take a `Self` shift amount and narrowed it
-        // to u64, then cast to usize. On 32-bit targets that cast truncated
+        // The `Self` shift operators narrowed the shift amount to u64, then
+        // cast it to usize. On 32-bit targets that cast truncated
         // u64 -> u32, wrapping shift amounts in [2^32, 2^64) mod 2^32 (audit
         // 1.9): e.g. `U256::ONE << U256::from(1u64 << 32)` shifted by 0 and
         // returned 1. The pointer-width-aware `usize::try_from` now shifts the
@@ -1572,36 +1556,28 @@ mod tests {
 
         // The 1.9 repro amount: 2^32 >= BITS, so the whole value shifts out.
         let big = U::from(1u64 << 32);
-        assert_eq!(U::ONE.overflowing_shl_big(big), (U::ZERO, true));
-        assert_eq!(U::ONE.overflowing_shr_big(big), (U::ZERO, true));
-        // the operators route through the `_big` helpers
         assert_eq!(U::ONE << big, U::ZERO);
+        assert_eq!(U::ONE >> big, U::ZERO);
         assert_eq!(U::MAX >> big, U::ZERO);
 
         // A shift amount of exactly BITS still shifts everything out.
-        assert_eq!(U::MAX.overflowing_shl_big(U::from(256)), (U::ZERO, true));
-        assert_eq!(U::MAX.overflowing_shr_big(U::from(256)), (U::ZERO, true));
+        assert_eq!(U::MAX << U::from(256), U::ZERO);
+        assert_eq!(U::MAX >> U::from(256), U::ZERO);
 
-        // Zero never sets the overflow flag, no matter how large the shift.
-        assert_eq!(U::ZERO.overflowing_shl_big(big), (U::ZERO, false));
-        assert_eq!(U::ZERO.overflowing_shr_big(big), (U::ZERO, false));
+        // Zero stays zero, no matter how large the shift.
+        assert_eq!(U::ZERO << big, U::ZERO);
+        assert_eq!(U::ZERO >> big, U::ZERO);
 
         // Shift amounts that exceed u64 take the `try_from` branch.
         let over_u64 = U::from_limbs([0, 0, 1, 0]); // 2^128 > u64::MAX
-        assert_eq!(U::MAX.overflowing_shl_big(over_u64), (U::ZERO, true));
-        assert_eq!(U::MAX.overflowing_shr_big(over_u64), (U::ZERO, true));
-        // ... and zero still reports no overflow there.
-        assert_eq!(U::ZERO.overflowing_shl_big(over_u64), (U::ZERO, false));
-        assert_eq!(U::ZERO.overflowing_shr_big(over_u64), (U::ZERO, false));
+        assert_eq!(U::MAX << over_u64, U::ZERO);
+        assert_eq!(U::MAX >> over_u64, U::ZERO);
+        // ... and zero stays zero there.
+        assert_eq!(U::ZERO << over_u64, U::ZERO);
+        assert_eq!(U::ZERO >> over_u64, U::ZERO);
 
         // In-range shifts (rhs < BITS) still return the real result.
-        assert_eq!(
-            U::ONE.overflowing_shl_big(U::from(8)),
-            (U::from(256), false)
-        );
-        assert_eq!(
-            U::from(256).overflowing_shr_big(U::from(8)),
-            (U::ONE, false)
-        );
+        assert_eq!(U::ONE << U::from(8), U::from(256));
+        assert_eq!(U::from(256) >> U::from(8), U::ONE);
     }
 }
