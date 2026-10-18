@@ -72,7 +72,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp);
         }
 
-        // Exponentiation by squaring
+        // Exponentiation by squaring. Copies instead of `mut self` keep LLVM
+        // from copying `self` and `exp` in every step for large sizes.
         let mut base = self;
         let mut exp = exp;
         let mut overflow = false;
