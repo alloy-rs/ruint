@@ -64,28 +64,34 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn overflowing_pow(mut self, mut exp: Self) -> (Self, bool) {
+    pub const fn overflowing_pow(self, exp: Self) -> (Self, bool) {
         if BITS == 0 {
             return (self, false);
         }
+        if self.is_power_of_two() {
+            return self.pow_power_of_two(exp);
+        }
 
-        // Exponentiation by squaring
+        // Square and multiply from the top bit of `exp` down. Every
+        // intermediate result is a power of `self` that is at most the final
+        // one, so the result overflows exactly when any step does.
+        let mut i = exp.bit_len();
+        if i == 0 {
+            return (Self::ONE, false);
+        }
+        i -= 1;
+        let mut result = self;
         let mut overflow = false;
-        let mut base_overflow = false;
-        let mut result = Self::ONE;
-        while !exp.const_is_zero() {
-            // Multiply by base
-            if exp.bit(0) {
+        while i > 0 {
+            i -= 1;
+            let (r, o) = result.overflowing_mul(result);
+            result = r;
+            overflow |= o;
+            if exp.bit(i) {
                 let (r, o) = result.overflowing_mul(self);
                 result = r;
-                overflow |= o | base_overflow;
+                overflow |= o;
             }
-
-            // Square base
-            let (s, o) = self.overflowing_mul(self);
-            self = s;
-            base_overflow |= o;
-            exp = exp.wrapping_shr(1);
         }
         (result, overflow)
     }
@@ -110,24 +116,49 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub const fn wrapping_pow(mut self, mut exp: Self) -> Self {
+    pub const fn wrapping_pow(self, exp: Self) -> Self {
         if BITS == 0 {
             return self;
         }
+        if self.is_power_of_two() {
+            return self.pow_power_of_two(exp).0;
+        }
 
-        // Exponentiation by squaring
-        let mut result = Self::ONE;
-        while !exp.const_is_zero() {
-            // Multiply by base
-            if exp.bit(0) {
+        // Square and multiply from the top bit of `exp` down.
+        let mut i = exp.bit_len();
+        if i == 0 {
+            return Self::ONE;
+        }
+        i -= 1;
+        let mut result = self;
+        while i > 0 {
+            i -= 1;
+            result = result.wrapping_mul(result);
+            if exp.bit(i) {
                 result = result.wrapping_mul(self);
             }
-
-            // Square base
-            self = self.wrapping_mul(self);
-            exp = exp.wrapping_shr(1);
         }
         result
+    }
+
+    /// Raises `self = 2^k` to the power of `exp` as a shift by `k * exp`, and
+    /// returns whether the result overflowed.
+    ///
+    /// Most EVM `EXP` calls raise 256 or 2 to a small power.
+    #[inline]
+    const fn pow_power_of_two(self, exp: Self) -> (Self, bool) {
+        // Exponents of `BITS` or more overflow for every base above one.
+        let mut high = 0;
+        const_range_for!(i in 1..LIMBS => {
+            high |= exp.limbs[i];
+        });
+        let exp = if high == 0 && exp.limbs[0] < BITS as u64 {
+            exp.limbs[0] as usize
+        } else {
+            BITS
+        };
+        let shift = exp.saturating_mul(self.trailing_zeros());
+        (Self::ONE.wrapping_shl(shift), shift >= BITS)
     }
 
     /// Construct from double precision binary logarithm.
@@ -224,6 +255,21 @@ mod tests {
             proptest!(|(e in 0..=BITS+1)| {
                 assert_eq!(U::from(2).pow(U::from(e)), U::from(1) << e);
             });
+            proptest!(|(k in 0..BITS, e in 0..=BITS+1, high: U)| {
+                let base = U::from(1) << k;
+                let expected = if k * e < BITS {
+                    (U::from(1) << (k * e), false)
+                } else {
+                    (U::ZERO, true)
+                };
+                assert_eq!(base.overflowing_pow(U::from(e)), expected);
+                assert_eq!(base.wrapping_pow(U::from(e)), expected.0);
+                // Exponents with high bits set overflow every base above one.
+                let e = U::from(e) | (high << 64);
+                if k > 0 && e >= U::from(BITS) {
+                    assert_eq!(base.overflowing_pow(e), (U::ZERO, true));
+                }
+            });
         });
     }
 
@@ -236,6 +282,8 @@ mod tests {
                 let b = U::from(b);
                 let prod = repeat_n(b, e).product::<U>();
                 assert_eq!(b.pow(U::from(e)), prod);
+                let overflow = repeat_n(b, e).try_fold(U::from(1), U::checked_mul).is_none();
+                assert_eq!(b.overflowing_pow(U::from(e)), (prod, overflow));
             });
         });
     }
