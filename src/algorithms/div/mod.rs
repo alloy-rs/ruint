@@ -604,4 +604,38 @@ mod tests {
         assert_eq!(numerator[..5], expected_quotient);
         assert_eq!(divisor, expected_remainder);
     }
+
+    #[test]
+    fn test_div_5by4_two_add_backs() {
+        // The two-limb estimate in `div_n1xn` is two too large here.
+        let mut numerator = [
+            0xffffffffee66d21a_u64,
+            0x00000000000de881_u64,
+            0xfffffffffff21681_u64,
+            0xffffffffffffff01_u64,
+            0xffffffffffffffff_u64,
+        ];
+        let mut divisor = [
+            0xfffffffffff2177e_u64,
+            0xffffffffffffffff_u64,
+            0x0000000000000000_u64,
+            0x0000000000000001_u64,
+        ];
+        let expected_quotient = [
+            0xffffffffffffff02_u64,
+            0xfffffffffffffffe_u64,
+            0x0000000000000000_u64,
+            0x0000000000000000_u64,
+            0x0000000000000000_u64,
+        ];
+        let expected_remainder = [
+            0xffffffffe09a211e_u64,
+            0xffffffffffffffff_u64,
+            0x0000000000000000_u64,
+            0x0000000000000001_u64,
+        ];
+        div(&mut numerator, &mut divisor);
+        assert_eq!(numerator, expected_quotient);
+        assert_eq!(divisor, expected_remainder);
+    }
 }
