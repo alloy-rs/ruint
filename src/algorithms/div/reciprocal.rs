@@ -12,8 +12,28 @@ use core::num::Wrapping;
 pub use self::{
     checked_reciprocal_2_mg10 as checked_reciprocal_2,
     checked_reciprocal_mg10 as checked_reciprocal, reciprocal_2_mg10 as reciprocal_2,
-    reciprocal_mg10 as reciprocal,
 };
+
+/// ⚠️ Computes $\floor{\frac{2^{128} - 1}{\mathsf{d}}} - 2^{64}$.
+#[doc = crate::algorithms::unstable_warning!()]
+/// Uses the `div` instruction on x86-64 and [`reciprocal_mg10`] elsewhere.
+///
+/// # Safety
+///
+/// - The input `d` must be at least `2^63`, i.e., its highest bit must be set.
+#[inline(always)]
+#[must_use]
+pub unsafe fn reciprocal(d: u64) -> u64 {
+    debug_assert!(d >= (1 << 63));
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: `!d < d` because the highest bit of `d` is set.
+    return unsafe { super::small::div_2x1_x86_64(!d, u64::MAX, d) }.0;
+    #[cfg(not(target_arch = "x86_64"))]
+    // SAFETY: COU propagated to this function.
+    unsafe {
+        reciprocal_mg10(d)
+    }
+}
 
 /// ⚠️ Computes $\floor{\frac{2^{128} - 1}{\mathtt{d}}} - 2^{64}$.
 #[doc = crate::algorithms::unstable_warning!()]
@@ -195,8 +215,8 @@ mod tests {
         proptest!(|(n: u64)| {
             let n = n | (1 << 63);
             let expected = reciprocal_ref(n);
-            let actual = unsafe { reciprocal_mg10(n) };
-            assert_eq!(expected, actual);
+            assert_eq!(expected, unsafe { reciprocal_mg10(n) });
+            assert_eq!(expected, unsafe { reciprocal(n) });
         });
     }
 
