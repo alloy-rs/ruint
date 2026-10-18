@@ -72,28 +72,30 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp);
         }
 
-        // Square and multiply from the top bit of `exp` down. Every
-        // intermediate result is a power of `self` that is at most the final
-        // one, so the result overflows exactly when any step does.
-        let mut i = exp.bit_len();
-        if i == 0 {
+        // Square and multiply from the bottom bit of `exp` up, skipping the
+        // final squaring. Each squaring feeds the multiplication by the top
+        // bit, so the result overflows exactly when any step does.
+        let bits = exp.bit_len();
+        if bits == 0 {
             return (Self::ONE, false);
         }
-        i -= 1;
-        let mut result = self;
+        let mut result = Self::ONE;
+        let mut base = self;
         let mut overflow = false;
-        while i > 0 {
-            i -= 1;
-            let (r, o) = result.overflowing_mul(result);
-            result = r;
-            overflow |= o;
+        let mut i = 0;
+        while i < bits - 1 {
             if exp.bit(i) {
-                let (r, o) = result.overflowing_mul(self);
+                let (r, o) = result.overflowing_mul(base);
                 result = r;
                 overflow |= o;
             }
+            let (b, o) = base.overflowing_mul(base);
+            base = b;
+            overflow |= o;
+            i += 1;
         }
-        (result, overflow)
+        let (r, o) = result.overflowing_mul(base);
+        (r, overflow | o)
     }
 
     /// Raises self to the power of `exp`, wrapping around on overflow.
@@ -124,21 +126,23 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return self.pow_power_of_two(exp).0;
         }
 
-        // Square and multiply from the top bit of `exp` down.
-        let mut i = exp.bit_len();
-        if i == 0 {
+        // Square and multiply from the bottom bit of `exp` up, skipping the
+        // final squaring.
+        let bits = exp.bit_len();
+        if bits == 0 {
             return Self::ONE;
         }
-        i -= 1;
-        let mut result = self;
-        while i > 0 {
-            i -= 1;
-            result = result.wrapping_mul(result);
+        let mut result = Self::ONE;
+        let mut base = self;
+        let mut i = 0;
+        while i < bits - 1 {
             if exp.bit(i) {
-                result = result.wrapping_mul(self);
+                result = result.wrapping_mul(base);
             }
+            base = base.wrapping_mul(base);
+            i += 1;
         }
-        result
+        result.wrapping_mul(base)
     }
 
     /// Raises `self = 2^k` to the power of `exp` as a shift by `k * exp`, and
