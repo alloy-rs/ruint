@@ -64,7 +64,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// ```
     #[inline]
     #[must_use]
-    pub const fn overflowing_pow(mut self, mut exp: Self) -> (Self, bool) {
+    pub const fn overflowing_pow(self, exp: Self) -> (Self, bool) {
         if BITS == 0 {
             return (self, false);
         }
@@ -73,20 +73,22 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
 
         // Exponentiation by squaring
+        let mut base = self;
+        let mut exp = exp;
         let mut overflow = false;
         let mut base_overflow = false;
         let mut result = Self::ONE;
         while !exp.const_is_zero() {
             // Multiply by base
             if exp.bit(0) {
-                let (r, o) = result.overflowing_mul(self);
+                let (r, o) = result.overflowing_mul(base);
                 result = r;
                 overflow |= o | base_overflow;
             }
 
             // Square base
-            let (s, o) = self.overflowing_mul(self);
-            self = s;
+            let (s, o) = base.overflowing_mul(base);
+            base = s;
             base_overflow |= o;
             exp = exp.wrapping_shr(1);
         }
@@ -113,7 +115,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     /// Raises self to the power of `exp`, wrapping around on overflow.
     #[inline]
     #[must_use]
-    pub const fn wrapping_pow(mut self, mut exp: Self) -> Self {
+    pub const fn wrapping_pow(self, exp: Self) -> Self {
         if BITS == 0 {
             return self;
         }
@@ -122,15 +124,17 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         }
 
         // Exponentiation by squaring
+        let mut base = self;
+        let mut exp = exp;
         let mut result = Self::ONE;
         while !exp.const_is_zero() {
             // Multiply by base
             if exp.bit(0) {
-                result = result.wrapping_mul(self);
+                result = result.wrapping_mul(base);
             }
 
             // Square base
-            self = self.wrapping_mul(self);
+            base = base.wrapping_mul(base);
             exp = exp.wrapping_shr(1);
         }
         result
