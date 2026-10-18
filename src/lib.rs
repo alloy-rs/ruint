@@ -7,7 +7,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(
     feature = "nightly",
-    feature(core_intrinsics, const_unsigned_bigint_helpers)
+    feature(
+        core_intrinsics,
+        const_select_unpredictable,
+        const_unsigned_bigint_helpers
+    )
 )]
 #![cfg_attr(
     feature = "nightly",

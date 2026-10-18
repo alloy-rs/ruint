@@ -144,9 +144,33 @@ pub(crate) fn select_unpredictable<T>(b: bool, true_val: T, false_val: T) -> T {
     if b { true_val } else { false_val }
 }
 
+/// See [`select_unpredictable_u64`].
 #[inline(always)]
 pub(crate) const fn select_unpredictable_u32(b: bool, true_val: u32, false_val: u32) -> u32 {
-    if b { true_val } else { false_val }
+    #[cfg(feature = "nightly")]
+    {
+        core::intrinsics::select_unpredictable(b, true_val, false_val)
+    }
+    #[cfg(not(feature = "nightly"))]
+    {
+        let mask = 0u32.wrapping_sub(b as u32);
+        (true_val & mask) | (false_val & !mask)
+    }
+}
+
+/// Unlike an `if`, the mask keeps LLVM from turning chains of these selects
+/// into branches.
+#[inline(always)]
+pub(crate) const fn select_unpredictable_u64(b: bool, true_val: u64, false_val: u64) -> u64 {
+    #[cfg(feature = "nightly")]
+    {
+        core::intrinsics::select_unpredictable(b, true_val, false_val)
+    }
+    #[cfg(not(feature = "nightly"))]
+    {
+        let mask = 0u64.wrapping_sub(b as u64);
+        (true_val & mask) | (false_val & !mask)
+    }
 }
 
 #[cfg(test)]

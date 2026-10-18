@@ -229,5 +229,17 @@ mod tests {
                 check_cmp(a, b)?;
             });
         });
+        const_for!(BITS in NON_ZERO {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            proptest!(|(a: U)| {
+                // `c` differs from `a` only in the lowest bit, so comparing
+                // them borrows through every limb.
+                let c = a ^ U::ONE;
+                check_cmp(a, a)?;
+                check_cmp(a, c)?;
+                check_cmp(c, a)?;
+            });
+        });
     }
 }
