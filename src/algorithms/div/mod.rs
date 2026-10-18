@@ -121,10 +121,11 @@ pub(crate) fn div_inlined(numerator: &mut [u64], divisor: &mut [u64]) {
     //   - Ensured by trimming zeros above.
     // 4. numerator has at least as many limbs as divisor.
     //   - Ensured by `if super::cmp` above.
-    if numerator.len() == divisor.len() && divisor.len() > 1 && div_nxn(numerator, divisor) {
-        return;
-    }
-    if numerator.len() == divisor.len() + 1 && divisor.len() >= 3 {
+    if numerator.len() == divisor.len() {
+        if divisor.len() > 1 && div_nxn(numerator, divisor) {
+            return;
+        }
+    } else if numerator.len() == divisor.len() + 1 && divisor.len() >= 3 {
         div_n1xn(numerator, divisor);
         return;
     }
