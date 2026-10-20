@@ -47,6 +47,22 @@ impl Matrix {
         if BITS == 0 {
             return;
         }
+        // One and two limbs multiply as primitive integers, which is cheaper
+        // than the limb loops below.
+        if LIMBS <= 2 {
+            (*a, *b) = if self.4 {
+                (
+                    Uint::from(self.0) * *a - Uint::from(self.1) * *b,
+                    Uint::from(self.3) * *b - Uint::from(self.2) * *a,
+                )
+            } else {
+                (
+                    Uint::from(self.1) * *b - Uint::from(self.0) * *a,
+                    Uint::from(self.2) * *a - Uint::from(self.3) * *b,
+                )
+            };
+            return;
+        }
         // Order the inputs so that `a' = p0 * x - n0 * y` and
         // `b' = p1 * y - n1 * x`.
         let (x, y, [p0, n0, p1, n1]) = if self.4 {
