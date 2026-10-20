@@ -1,7 +1,7 @@
 [package]
 name = "ruint"
 description = "Unsigned integer type with const-generic bit length"
-version = "1.20.1"
+version = "1.21.0"
 keywords = ["uint"]
 categories = ["mathematics"]
 include = [".cargo/", "src/", "README.md"]

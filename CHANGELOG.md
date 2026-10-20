@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-10-20
+
 ### Added
 
 - rand 0.10 support ([#644])
@@ -628,7 +630,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- links to version -->
 
-[unreleased]: https://github.com/alloy-rs/ruint/compare/v1.20.1...HEAD
+[unreleased]: https://github.com/alloy-rs/ruint/compare/v1.21.0...HEAD
+[1.21.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.21.0
 [1.20.1]: https://github.com/alloy-rs/ruint/releases/tag/v1.20.1
 [1.20.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.20.0
 [1.19.0]: https://github.com/alloy-rs/ruint/releases/tag/v1.19.0
