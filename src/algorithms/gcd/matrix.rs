@@ -122,7 +122,7 @@ impl Matrix {
         a: Uint<BITS, LIMBS>,
         b: Uint<BITS, LIMBS>,
     ) -> Self {
-        assert!(a >= b);
+        debug_assert!(a >= b);
 
         let s = a.bit_len();
         if s <= 64 {
