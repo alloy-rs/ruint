@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optimize `div_rem`, `/` and `%` with the `div` instruction on x86-64, a shorter reciprocal and a direct path for numerators one limb longer than the divisor ([#674])
 - Optimize `<<` and `>>` by a `Uint`, `overflowing_shl`, `overflowing_shr` and the operations built on them for three to eight limbs ([#675])
 - Optimize `pow` and the operations built on it for single-limb power of two bases ([#676])
+- Optimize `inv_mod`, `gcd` and `gcd_extended` for sizes above 128 bits
 
 [#647]: https://github.com/alloy-rs/ruint/pull/647
 [#650]: https://github.com/alloy-rs/ruint/pull/650

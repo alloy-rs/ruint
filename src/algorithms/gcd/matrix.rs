@@ -1,6 +1,9 @@
 #![allow(clippy::use_self)]
 
-use crate::Uint;
+use crate::{
+    Uint,
+    algorithms::{mul_nx1, submul_nx1},
+};
 
 /// ⚠️ Lehmer update matrix
 #[doc = crate::algorithms::unstable_warning!()]
@@ -44,21 +47,23 @@ impl Matrix {
         if BITS == 0 {
             return;
         }
-        // OPT: We can avoid the temporary if we implement a dedicated matrix
-        // multiplication.
-        let (c, d) = if self.4 {
-            (
-                Uint::from(self.0) * *a - Uint::from(self.1) * *b,
-                Uint::from(self.3) * *b - Uint::from(self.2) * *a,
-            )
+        // Order the inputs so that `a' = p0 * x - n0 * y` and
+        // `b' = p1 * y - n1 * x`.
+        let (x, y, [p0, n0, p1, n1]) = if self.4 {
+            (*a, *b, [self.0, self.1, self.3, self.2])
         } else {
-            (
-                Uint::from(self.1) * *b - Uint::from(self.0) * *a,
-                Uint::from(self.2) * *a - Uint::from(self.3) * *b,
-            )
+            (*b, *a, [self.1, self.0, self.2, self.3])
         };
-        *a = c;
-        *b = d;
+        (*a, *b) = (x, y);
+        mul_nx1(&mut a.limbs, p0);
+        mul_nx1(&mut b.limbs, p1);
+        // SAFETY: All operands have `LIMBS` limbs.
+        unsafe {
+            submul_nx1(&mut a.limbs, &y.limbs, n0);
+            submul_nx1(&mut b.limbs, &x.limbs, n1);
+        }
+        a.apply_mask();
+        b.apply_mask();
     }
 
     /// ⚠️ Applies the matrix to a `u128`.
@@ -103,16 +108,16 @@ impl Matrix {
     ) -> Self {
         assert!(a >= b);
 
-        // Grab the first 128 bits.
         let s = a.bit_len();
         if s <= 64 {
             Self::from_u64(a.try_into().unwrap(), b.try_into().unwrap())
         } else if s <= 128 {
             Self::from_u128_prefix(a.try_into().unwrap(), b.try_into().unwrap())
         } else {
-            let a = a >> (s - 128);
-            let b = b >> (s - 128);
-            Self::from_u128_prefix(a.try_into().unwrap(), b.try_into().unwrap())
+            // Grab the first 64 bits.
+            let a = (a >> (s - 64)).limbs[0];
+            let b = (b >> (s - 64)).limbs[0];
+            Self::from_u64_prefix(a, b)
         }
     }
 
