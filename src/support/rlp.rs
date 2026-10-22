@@ -24,9 +24,14 @@ impl<const BITS: usize, const LIMBS: usize> Encodable for Uint<BITS, LIMBS> {
 /// See <https://eth.wiki/en/fundamentals/rlp>
 impl<const BITS: usize, const LIMBS: usize> Decodable for Uint<BITS, LIMBS> {
     fn decode(s: &Rlp) -> Result<Self, DecoderError> {
-        Self::try_from_be_slice(s.data()?).ok_or(DecoderError::Custom(
-            "RLP integer value too large for Uint.",
-        ))
+        s.decoder().decode_value(|bytes| {
+            if bytes.first() == Some(&0) {
+                return Err(DecoderError::RlpInvalidIndirection);
+            }
+            Self::try_from_be_slice(bytes).ok_or(DecoderError::Custom(
+                "RLP integer value too large for Uint.",
+            ))
+        })
     }
 }
 
@@ -79,6 +84,20 @@ mod test {
         assert_eq!(U256::from(15).rlp_bytes()[..], hex!("0f"));
         assert_eq!(U256::from(1024).rlp_bytes()[..], hex!("820400"));
         assert_eq!(U256::from(0x1234_5678).rlp_bytes()[..], hex!("8412345678"));
+    }
+
+    #[test]
+    fn test_uint_decode_non_canonical() {
+        assert_eq!(U256::decode(&Rlp::new(&hex!("80"))), Ok(U256::ZERO));
+        for bytes in [
+            &hex!("820001")[..],
+            &hex!("8105"),
+            &hex!("c105"),
+            &hex!("c0"),
+            &hex!("00"),
+        ] {
+            assert!(U256::decode(&Rlp::new(bytes)).is_err(), "{bytes:02x?}");
+        }
     }
 
     #[test]
