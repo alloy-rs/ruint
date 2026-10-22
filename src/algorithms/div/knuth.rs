@@ -16,9 +16,10 @@ use crate::{
 /// - `numerator` MUST contain strictly more limbs than `divisor`; the extra
 ///   limb(s) hold the quotient. (Equal lengths are NOT permitted.)
 /// - The quotient MUST fit in `numerator.len() - divisor.len()` limbs; that is,
-///   `numerator / divisor < 2^(64 * (numerator.len() - divisor.len()))`.
-///   Equivalently, the two most-significant limbs of `numerator` MUST NOT
-///   exceed the two most-significant limbs of `divisor`.
+///   `numerator / divisor < 2^(64 * (numerator.len() - divisor.len()))`. This
+///   holds if the two most-significant limbs of `numerator` are strictly less
+///   than the two most-significant limbs of `divisor`, but is not implied by
+///   them being less than or equal.
 ///
 /// In debug mode, panics if any condition of use is violated. In release, may
 /// panic or trigger UB if any condition of use is violated.
@@ -137,7 +138,7 @@ pub(crate) unsafe fn rem_nxm_spare_limb(numerator: &mut [u64], divisor: &mut [u6
     // SAFETY: The divisor is normalized, and the numerator has more limbs than
     // the divisor. The highest numerator limb holds at most `shift` bits, so it
     // is smaller than the highest divisor limb and the quotient fits. When
-    // skipping, the remaining two highest limbs don't exceed the divisor's.
+    // skipping, the remaining two highest limbs are smaller than the divisor's.
     unsafe { div_nxm_normalized(&mut numerator[..len - skip as usize], divisor) };
 
     // Denormalize the remainder.
