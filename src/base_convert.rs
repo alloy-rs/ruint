@@ -271,7 +271,7 @@ impl<const LIMBS: usize> FusedIterator for SpigotLittle<LIMBS> {}
 ///
 /// This is generally slower than simply reversing the result of `to_base_le`
 /// as it performs two divisions per iteration instead of one.
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(test, not(feature = "alloc")))]
 struct SpigotBig<const LIMBS: usize, const BITS: usize> {
     base:  u64,
     n:     Uint<BITS, LIMBS>,
@@ -279,7 +279,7 @@ struct SpigotBig<const LIMBS: usize, const BITS: usize> {
     done:  bool,
 }
 
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(test, not(feature = "alloc")))]
 impl<const LIMBS: usize, const BITS: usize> SpigotBig<LIMBS, BITS> {
     #[inline]
     #[track_caller]
@@ -301,14 +301,14 @@ impl<const LIMBS: usize, const BITS: usize> SpigotBig<LIMBS, BITS> {
         if base.is_power_of_two() {
             loop {
                 match power.checked_shl(base.trailing_zeros() as _) {
-                    Some(p) if p < n => power = p,
+                    Some(p) if p <= n => power = p,
                     _ => break,
                 }
             }
         } else if let Ok(base) = Uint::try_from(base) {
             loop {
                 match power.checked_mul(base) {
-                    Some(p) if p < n => power = p,
+                    Some(p) if p <= n => power = p,
                     _ => break,
                 }
             }
@@ -317,7 +317,7 @@ impl<const LIMBS: usize, const BITS: usize> SpigotBig<LIMBS, BITS> {
     }
 }
 
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(test, not(feature = "alloc")))]
 impl<const LIMBS: usize, const BITS: usize> Iterator for SpigotBig<LIMBS, BITS> {
     type Item = u64;
 
@@ -348,7 +348,7 @@ impl<const LIMBS: usize, const BITS: usize> Iterator for SpigotBig<LIMBS, BITS> 
     }
 }
 
-#[cfg(not(feature = "alloc"))]
+#[cfg(any(test, not(feature = "alloc")))]
 impl<const LIMBS: usize, const BITS: usize> core::iter::FusedIterator for SpigotBig<LIMBS, BITS> {}
 
 /// An iterator over the base `base` digits of the number in big-endian order.
@@ -574,14 +574,14 @@ mod tests {
     #[test]
     fn test_roundtrip() {
         fn test<const BITS: usize, const LIMBS: usize>(n: Uint<BITS, LIMBS>, base: u64) {
-            assert_eq!(
-                n.to_base_be(base).collect::<Vec<_>>(),
-                n.to_base_le(base)
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .rev()
-                    .collect::<Vec<_>>(),
-            );
+            let be = n
+                .to_base_le(base)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>();
+            assert_eq!(n.to_base_be(base).collect::<Vec<_>>(), be);
+            assert_eq!(SpigotBig::new(n, base).collect::<Vec<_>>(), be);
 
             let digits = n.to_base_le(base);
             let n2 = Uint::<BITS, LIMBS>::from_base_le(base, digits).unwrap();
@@ -603,6 +603,11 @@ mod tests {
         {
             test(Uint::<64, 1>::from(123456789), base);
             test(Uint::<128, 2>::from(123456789), base);
+            test(Uint::<64, 1>::from(base), base);
+            test(
+                Uint::<128, 2>::from(u128::from(base) * u128::from(base)),
+                base,
+            );
             test(N, base);
         }
     }
