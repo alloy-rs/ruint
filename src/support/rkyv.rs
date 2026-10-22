@@ -82,14 +82,8 @@ impl<S: Fallible + ?Sized, const BITS: usize, const LIMBS: usize> Serialize<S>
 impl<D: Fallible + ?Sized, const BITS: usize, const LIMBS: usize> Deserialize<Uint<BITS, LIMBS>, D>
     for Archived<Uint<BITS, LIMBS>>
 {
-    fn deserialize(
-        &self,
-        deserializer: &mut D,
-    ) -> Result<Uint<BITS, LIMBS>, <D as Fallible>::Error> {
-        Ok(Uint::from_limbs(<[ArchivedU64; LIMBS]>::deserialize(
-            &self.0,
-            deserializer,
-        )?))
+    fn deserialize(&self, _: &mut D) -> Result<Uint<BITS, LIMBS>, <D as Fallible>::Error> {
+        Ok(self.into())
     }
 }
 
@@ -231,10 +225,7 @@ mod tests {
     #[test]
     fn test_rkyv_rejects_out_of_width_top_limb() {
         fn access<const BITS: usize, const LIMBS: usize>(limbs: [u64; LIMBS]) -> bool {
-            let mut bytes = rkyv::util::AlignedVec::<16>::new();
-            for limb in limbs {
-                bytes.extend_from_slice(&limb.to_le_bytes());
-            }
+            let bytes = rkyv::to_bytes::<rancor::Error>(&limbs).unwrap();
             rkyv::access::<ArchivedUint<BITS, LIMBS>, rancor::Error>(&bytes).is_ok()
         }
 
