@@ -215,6 +215,9 @@ impl<'a, const BITS: usize, const LIMBS: usize> FromSql<'a> for Uint<BITS, LIMBS
                 }
                 let len: usize = i32::from_be_bytes(raw[..4].try_into()?).try_into()?;
                 let raw = &raw[4..];
+                if raw.len() != len.div_ceil(8) {
+                    return Err(Box::new(FromSqlError::ParseError(ty.clone())));
+                }
 
                 // Shift padding to the other end
                 let padding = 8 - rem_up(len, 8);
@@ -235,22 +238,20 @@ impl<'a, const BITS: usize, const LIMBS: usize> FromSql<'a> for Uint<BITS, LIMBS
             // Hex strings
             Type::JSON | Type::JSONB => {
                 let raw = if *ty == Type::JSONB {
-                    if raw[0] == 1 {
-                        &raw[1..]
-                    } else {
-                        // Unsupported version
+                    let [1, rest @ ..] = raw else {
+                        // Missing or unsupported version
                         return Err(Box::new(FromSqlError::ParseError(ty.clone())));
-                    }
+                    };
+                    rest
                 } else {
                     raw
                 };
                 let str = from_utf8(raw)?;
-                let str = if str.starts_with('"') && str.ends_with('"') {
-                    // Stringified number
-                    &str[1..str.len() - 1]
-                } else {
-                    str
-                };
+                // Stringified number
+                let str = str
+                    .strip_prefix('"')
+                    .and_then(|str| str.strip_suffix('"'))
+                    .unwrap_or(str);
                 Self::from_str(str)?
             }
 
@@ -260,8 +261,8 @@ impl<'a, const BITS: usize, const LIMBS: usize> FromSql<'a> for Uint<BITS, LIMBS
                 if raw.len() < 8 {
                     return Err(Box::new(FromSqlError::ParseError(ty.clone())));
                 }
-                let digits = i16::from_be_bytes(raw[0..2].try_into()?);
-                let exponent = i16::from_be_bytes(raw[2..4].try_into()?);
+                let digits = i32::from(i16::from_be_bytes(raw[0..2].try_into()?));
+                let exponent = i32::from(i16::from_be_bytes(raw[2..4].try_into()?));
                 let sign = i16::from_be_bytes(raw[4..6].try_into()?);
                 let dscale = i16::from_be_bytes(raw[6..8].try_into()?);
                 let raw = &raw[8..];
@@ -544,5 +545,53 @@ mod tests {
 
             });
         });
+    }
+
+    fn from_sql_error(ty: Type, raw: &[u8]) -> FromSqlError {
+        *Uint::<64, 1>::from_sql(&ty, raw)
+            .unwrap_err()
+            .downcast::<FromSqlError>()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_from_sql_numeric_max_weight() {
+        let raw = [0x00, 0x01, 0x7f, 0xff, 0, 0, 0, 0, 0x03, 0xe8];
+        assert!(Uint::<256, 4>::from_sql(&Type::NUMERIC, &raw).is_err());
+    }
+
+    #[test]
+    fn test_from_sql_bit_length_mismatch() {
+        for ty in [Type::BIT, Type::VARBIT] {
+            let parse_error = FromSqlError::ParseError(ty.clone());
+            assert_eq!(
+                Uint::<64, 1>::from_sql(&ty, &[0, 0, 0, 3, 0b1010_0000]).unwrap(),
+                Uint::<64, 1>::from(5)
+            );
+            assert_eq!(from_sql_error(ty.clone(), &[0, 0, 0, 3]), parse_error);
+            assert_eq!(
+                from_sql_error(ty.clone(), &[0, 0, 0, 1, 0xff, 0xff]),
+                parse_error
+            );
+            assert_eq!(from_sql_error(ty, &[0, 0, 0, 9, 0xff]), parse_error);
+        }
+    }
+
+    #[test]
+    fn test_from_sql_jsonb_empty() {
+        assert_eq!(
+            from_sql_error(Type::JSONB, &[]),
+            FromSqlError::ParseError(Type::JSONB)
+        );
+    }
+
+    #[test]
+    fn test_from_sql_json_lone_quote() {
+        assert!(Uint::<64, 1>::from_sql(&Type::JSON, b"\"").is_err());
+        assert!(Uint::<64, 1>::from_sql(&Type::JSONB, &[1, b'"']).is_err());
+        assert_eq!(
+            Uint::<64, 1>::from_sql(&Type::JSON, b"\"12\"").unwrap(),
+            Uint::from(12)
+        );
     }
 }
