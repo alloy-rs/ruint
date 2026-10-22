@@ -4,12 +4,12 @@
 #![cfg_attr(docsrs, doc(cfg(feature = "rkyv")))]
 
 use crate::{Bits, Uint};
-use core::fmt;
+use core::{error::Error, fmt};
 use rkyv::{
     Archive, Archived, Deserialize, Place, Portable, Serialize,
     bytecheck::CheckBytes,
     primitive::ArchivedU64,
-    rancor::{Fallible, Trace},
+    rancor::{Fallible, Source, fail},
 };
 
 /// An archived [`Uint`]
@@ -25,18 +25,39 @@ pub struct ArchivedBits<const BITS: usize, const LIMBS: usize>(ArchivedUint<BITS
 unsafe impl<const BITS: usize, const LIMBS: usize, C: Fallible + ?Sized> CheckBytes<C>
     for ArchivedUint<BITS, LIMBS>
 where
-    <C as Fallible>::Error: Trace,
+    <C as Fallible>::Error: Source,
 {
     unsafe fn check_bytes(
         value: *const Self,
         context: &mut C,
     ) -> Result<(), <C as Fallible>::Error> {
+        let _ = Uint::<BITS, LIMBS>::LIMBS; // Triggers the assertion.
         unsafe {
             <[ArchivedU64; LIMBS]>::check_bytes(value.cast(), context)?;
+        }
+        // SAFETY: The limbs were checked above.
+        let limbs = unsafe { &*value.cast::<[ArchivedU64; LIMBS]>() };
+        if let Some(top) = limbs.last()
+            && top.to_native() > Uint::<BITS, LIMBS>::MASK
+        {
+            fail!(TopLimbError { bits: BITS });
         }
         Ok(())
     }
 }
+
+#[derive(Debug)]
+struct TopLimbError {
+    bits: usize,
+}
+
+impl fmt::Display for TopLimbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "value does not fit in {} bits", self.bits)
+    }
+}
+
+impl Error for TopLimbError {}
 
 impl<const BITS: usize, const LIMBS: usize> Archive for Uint<BITS, LIMBS> {
     type Archived = ArchivedUint<BITS, LIMBS>;
@@ -65,16 +86,17 @@ impl<D: Fallible + ?Sized, const BITS: usize, const LIMBS: usize> Deserialize<Ui
         &self,
         deserializer: &mut D,
     ) -> Result<Uint<BITS, LIMBS>, <D as Fallible>::Error> {
-        Ok(Uint {
-            limbs: <[ArchivedU64; LIMBS]>::deserialize(&self.0, deserializer)?,
-        })
+        Ok(Uint::from_limbs(<[ArchivedU64; LIMBS]>::deserialize(
+            &self.0,
+            deserializer,
+        )?))
     }
 }
 
 unsafe impl<const BITS: usize, const LIMBS: usize, C: Fallible + ?Sized> CheckBytes<C>
     for ArchivedBits<BITS, LIMBS>
 where
-    <C as Fallible>::Error: Trace,
+    <C as Fallible>::Error: Source,
 {
     unsafe fn check_bytes(
         value: *const Self,
@@ -124,9 +146,7 @@ impl<'a, const BITS: usize, const LIMBS: usize> From<&'a ArchivedUint<BITS, LIMB
     for Uint<BITS, LIMBS>
 {
     fn from(archived: &'a ArchivedUint<BITS, LIMBS>) -> Self {
-        Self {
-            limbs: archived.0.map(ArchivedU64::to_native),
-        }
+        Self::from_limbs(archived.0.map(ArchivedU64::to_native))
     }
 }
 
@@ -206,5 +226,21 @@ mod tests {
                 assert_eq!(b, d);
             });
         });
+    }
+
+    #[test]
+    fn test_rkyv_rejects_out_of_width_top_limb() {
+        fn access<const BITS: usize, const LIMBS: usize>(limbs: [u64; LIMBS]) -> bool {
+            let mut bytes = rkyv::util::AlignedVec::<16>::new();
+            for limb in limbs {
+                bytes.extend_from_slice(&limb.to_le_bytes());
+            }
+            rkyv::access::<ArchivedUint<BITS, LIMBS>, rancor::Error>(&bytes).is_ok()
+        }
+
+        assert!(access::<130, 3>([u64::MAX, u64::MAX, 3]));
+        assert!(!access::<130, 3>([0, 0, 4]));
+        assert!(!access::<130, 3>([0, 0, 1 << 63]));
+        assert!(access::<128, 2>([u64::MAX, u64::MAX]));
     }
 }
