@@ -286,11 +286,17 @@ impl<const LIMBS: usize, const BITS: usize> SpigotBig<LIMBS, BITS> {
     fn new(n: Uint<BITS, LIMBS>, base: u64) -> Self {
         assert!(base > 1);
 
+        // Zero has no digits, matching `to_base_le`.
+        let done = n.is_zero();
         Self {
             n,
             base,
-            power: Self::highest_power(n, base),
-            done: false,
+            power: if done {
+                Uint::ZERO
+            } else {
+                Self::highest_power(n, base)
+            },
+            done,
         }
     }
 
@@ -603,6 +609,8 @@ mod tests {
         {
             test(Uint::<64, 1>::from(123456789), base);
             test(Uint::<128, 2>::from(123456789), base);
+            test(Uint::<0, 0>::ZERO, base);
+            test(Uint::<64, 1>::ZERO, base);
             test(Uint::<64, 1>::from(base), base);
             test(
                 Uint::<128, 2>::from(u128::from(base) * u128::from(base)),
