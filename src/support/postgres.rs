@@ -351,54 +351,6 @@ mod tests {
         assert_eq!(bytes(Type::VARCHAR), hex!("307863383565663764373936393166653739353733623161373036346331396331613938313965626462643166616161623161386563393233343434333861616634"));
     }
 
-    fn from_sql_error(ty: Type, raw: &[u8]) -> FromSqlError {
-        *Uint::<64, 1>::from_sql(&ty, raw)
-            .unwrap_err()
-            .downcast::<FromSqlError>()
-            .unwrap()
-    }
-
-    #[test]
-    fn test_from_sql_numeric_max_weight() {
-        let raw = [0x00, 0x01, 0x7f, 0xff, 0, 0, 0, 0, 0x03, 0xe8];
-        assert!(Uint::<256, 4>::from_sql(&Type::NUMERIC, &raw).is_err());
-    }
-
-    #[test]
-    fn test_from_sql_bit_length_mismatch() {
-        for ty in [Type::BIT, Type::VARBIT] {
-            let parse_error = FromSqlError::ParseError(ty.clone());
-            assert_eq!(
-                Uint::<64, 1>::from_sql(&ty, &[0, 0, 0, 3, 0b1010_0000]).unwrap(),
-                Uint::<64, 1>::from(5)
-            );
-            assert_eq!(from_sql_error(ty.clone(), &[0, 0, 0, 3]), parse_error);
-            assert_eq!(
-                from_sql_error(ty.clone(), &[0, 0, 0, 1, 0xff, 0xff]),
-                parse_error
-            );
-            assert_eq!(from_sql_error(ty, &[0, 0, 0, 9, 0xff]), parse_error);
-        }
-    }
-
-    #[test]
-    fn test_from_sql_jsonb_empty() {
-        assert_eq!(
-            from_sql_error(Type::JSONB, &[]),
-            FromSqlError::ParseError(Type::JSONB)
-        );
-    }
-
-    #[test]
-    fn test_from_sql_json_lone_quote() {
-        assert!(Uint::<64, 1>::from_sql(&Type::JSON, b"\"").is_err());
-        assert!(Uint::<64, 1>::from_sql(&Type::JSONB, &[1, b'"']).is_err());
-        assert_eq!(
-            Uint::<64, 1>::from_sql(&Type::JSON, b"\"12\"").unwrap(),
-            Uint::from(12)
-        );
-    }
-
     #[test]
     fn test_roundtrip() {
         const_for!(BITS in SIZES {
@@ -593,5 +545,53 @@ mod tests {
 
             });
         });
+    }
+
+    fn from_sql_error(ty: Type, raw: &[u8]) -> FromSqlError {
+        *Uint::<64, 1>::from_sql(&ty, raw)
+            .unwrap_err()
+            .downcast::<FromSqlError>()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_from_sql_numeric_max_weight() {
+        let raw = [0x00, 0x01, 0x7f, 0xff, 0, 0, 0, 0, 0x03, 0xe8];
+        assert!(Uint::<256, 4>::from_sql(&Type::NUMERIC, &raw).is_err());
+    }
+
+    #[test]
+    fn test_from_sql_bit_length_mismatch() {
+        for ty in [Type::BIT, Type::VARBIT] {
+            let parse_error = FromSqlError::ParseError(ty.clone());
+            assert_eq!(
+                Uint::<64, 1>::from_sql(&ty, &[0, 0, 0, 3, 0b1010_0000]).unwrap(),
+                Uint::<64, 1>::from(5)
+            );
+            assert_eq!(from_sql_error(ty.clone(), &[0, 0, 0, 3]), parse_error);
+            assert_eq!(
+                from_sql_error(ty.clone(), &[0, 0, 0, 1, 0xff, 0xff]),
+                parse_error
+            );
+            assert_eq!(from_sql_error(ty, &[0, 0, 0, 9, 0xff]), parse_error);
+        }
+    }
+
+    #[test]
+    fn test_from_sql_jsonb_empty() {
+        assert_eq!(
+            from_sql_error(Type::JSONB, &[]),
+            FromSqlError::ParseError(Type::JSONB)
+        );
+    }
+
+    #[test]
+    fn test_from_sql_json_lone_quote() {
+        assert!(Uint::<64, 1>::from_sql(&Type::JSON, b"\"").is_err());
+        assert!(Uint::<64, 1>::from_sql(&Type::JSONB, &[1, b'"']).is_err());
+        assert_eq!(
+            Uint::<64, 1>::from_sql(&Type::JSON, b"\"12\"").unwrap(),
+            Uint::from(12)
+        );
     }
 }
