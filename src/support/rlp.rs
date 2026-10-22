@@ -24,6 +24,9 @@ impl<const BITS: usize, const LIMBS: usize> Encodable for Uint<BITS, LIMBS> {
 /// See <https://eth.wiki/en/fundamentals/rlp>
 impl<const BITS: usize, const LIMBS: usize> Decodable for Uint<BITS, LIMBS> {
     fn decode(s: &Rlp) -> Result<Self, DecoderError> {
+        // `decode_value` does not reject long-form headers for payloads of 55
+        // bytes or less.
+        s.payload_info()?;
         s.decoder().decode_value(|bytes| {
             if bytes.first() == Some(&0) {
                 return Err(DecoderError::RlpInvalidIndirection);
@@ -93,6 +96,7 @@ mod test {
             (&hex!("820001")[..], DecoderError::RlpInvalidIndirection),
             (&hex!("8105"), DecoderError::RlpInvalidIndirection),
             (&hex!("00"), DecoderError::RlpInvalidIndirection),
+            (&hex!("b80105"), DecoderError::RlpInvalidIndirection),
             (&hex!("c105"), DecoderError::RlpExpectedToBeData),
             (&hex!("c0"), DecoderError::RlpExpectedToBeData),
         ] {
