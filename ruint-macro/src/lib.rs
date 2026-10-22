@@ -109,7 +109,7 @@ fn parse_digits(value: &str) -> Result<Vec<u64>, String> {
             _ => return Err(format!("Invalid character '{c}'")),
         };
         #[allow(clippy::cast_lossless)]
-        if digit > base as u64 {
+        if digit >= base as u64 {
             return Err(format!(
                 "Invalid digit {c} in base {base} (did you forget the `0x` prefix?)"
             ));
@@ -285,6 +285,22 @@ mod tests {
         assert_eq!(parse_digits("0x10"), Ok(vec![16]));
         assert_eq!(parse_digits("0b10"), Ok(vec![2]));
         assert_eq!(parse_digits("0o10"), Ok(vec![8]));
+    }
+
+    #[test]
+    fn test_digit_equal_to_base() {
+        assert_eq!(
+            parse_digits("10a"),
+            Err("Invalid digit a in base 10 (did you forget the `0x` prefix?)".to_string())
+        );
+        assert_eq!(
+            parse_digits("0o8"),
+            Err("Invalid digit 8 in base 8 (did you forget the `0x` prefix?)".to_string())
+        );
+        assert_eq!(
+            parse_digits("0b2"),
+            Err("Invalid digit 2 in base 2 (did you forget the `0x` prefix?)".to_string())
+        );
     }
 
     #[test]
