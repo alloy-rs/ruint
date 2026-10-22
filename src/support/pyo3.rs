@@ -217,6 +217,9 @@ mod test {
             let obj = (-(1_i128 << 100)).into_pyobject(py).unwrap();
             assert!(err_is::<U256, PyOverflowError>(&obj));
 
+            let obj = (1_i64).into_pyobject(py).unwrap();
+            assert!(err_is::<U0, PyOverflowError>(&obj));
+
             let obj = (1000_i64).into_pyobject(py).unwrap();
             assert!(err_is::<U0, PyOverflowError>(&obj));
             assert!(err_is::<U8, PyOverflowError>(&obj));
