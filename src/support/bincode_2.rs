@@ -10,6 +10,8 @@ use bincode_2::{
     error::{DecodeError, EncodeError},
 };
 
+const OUT_OF_WIDTH: &str = "value too large for Uint";
+
 impl<const BITS: usize, const LIMBS: usize> Encode for Uint<BITS, LIMBS> {
     fn encode<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
         if BITS == 0 {
@@ -59,7 +61,7 @@ impl<Context, const BITS: usize, const LIMBS: usize> Decode<Context> for Uint<BI
             core::slice::from_raw_parts_mut(ptr, Self::BYTES)
         };
         decoder.reader().read(slice)?;
-        Ok(Self::from_le_slice(&*slice))
+        Self::try_from_le_slice(&*slice).ok_or(DecodeError::Other(OUT_OF_WIDTH))
     }
 }
 
@@ -79,7 +81,7 @@ impl<'de, Context, const BITS: usize, const LIMBS: usize> BorrowDecode<'de, Cont
                 found:    bytes.len(),
             });
         }
-        Ok(Self::from_le_slice(bytes))
+        Self::try_from_le_slice(bytes).ok_or(DecodeError::Other(OUT_OF_WIDTH))
     }
 }
 
@@ -120,7 +122,9 @@ mod tests {
     use super::*;
     use crate::{const_for, nbytes, nlimbs};
     use bincode_2::{
-        borrow_decode_from_slice, config::Config, decode_from_slice, encode_into_slice,
+        borrow_decode_from_slice,
+        config::{self, Config},
+        decode_from_slice, encode_into_slice,
     };
     use proptest::proptest;
 
@@ -154,6 +158,24 @@ mod tests {
                 assert_eq!(bytes_read, bytes_written);
                 assert_eq!(value, deserialized);
             });
+        });
+    }
+
+    #[test]
+    fn test_bincode_2_decode_error_out_of_width() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            const BUFFER_SIZE: usize = nbytes(BITS) + 8;
+            if !BITS.is_multiple_of(8) {
+                let mut buffer = [0u8; BUFFER_SIZE];
+                let written = encode_into_slice(Uint::<BITS, LIMBS>::ZERO, &mut buffer, config::standard()).unwrap();
+                buffer[written - 1] = 1 << (BITS % 8);
+
+                let result = decode_from_slice::<Uint<BITS, LIMBS>, _>(&buffer, config::standard());
+                assert!(matches!(result, Err(DecodeError::Other(_))));
+                let result = borrow_decode_from_slice::<Uint<BITS, LIMBS>, _>(&buffer, config::standard());
+                assert!(matches!(result, Err(DecodeError::Other(_))));
+            }
         });
     }
 }

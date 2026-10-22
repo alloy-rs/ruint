@@ -38,14 +38,15 @@ impl<const BITS: usize, const LIMBS: usize> Decode for Uint<BITS, LIMBS> {
                 expected: nbytes(BITS),
             });
         }
-        Ok(Self::from_le_slice(bytes))
+        Self::try_from_le_slice(bytes)
+            .ok_or_else(|| DecodeError::BytesInvalid(format!("Value too large for Uint<{BITS}>")))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use proptest::proptest;
-    use ruint::{Uint, const_for, nlimbs};
+    use ruint::{Uint, const_for, nbytes, nlimbs};
     use ssz::DecodeError;
 
     #[test]
@@ -74,6 +75,20 @@ mod tests {
                 let result = <Uint<BITS, LIMBS> as ssz::Decode>::from_ssz_bytes(&oversized);
                 assert!(matches!(result, Err(DecodeError::InvalidByteLength { len:_, expected:_ })));
             });
+        });
+    }
+
+    #[test]
+    fn test_ssz_decode_error_out_of_width() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            if !BITS.is_multiple_of(8) {
+                let mut bytes = vec![0; nbytes(BITS)];
+                *bytes.last_mut().unwrap() = 1 << (BITS % 8);
+
+                let result = <Uint<BITS, LIMBS> as ssz::Decode>::from_ssz_bytes(&bytes);
+                assert!(matches!(result, Err(DecodeError::BytesInvalid(_))));
+            }
         });
     }
 }
