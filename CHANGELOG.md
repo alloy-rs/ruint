@@ -14,10 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrong `mul_mod` result when the product's top limbs equal the modulus's ([#681])
 - Wrong `to_base_be` digits for zero and exact powers of the base without the `alloc` feature ([#683])
 - `uint!` accepting a digit equal to the base, such as `10a_U64` ([#683])
-- `rlp` `Decodable` for `Uint` accepting leading zeros, lists and the two-byte form of single bytes below `0x80`
+- `rlp` `Decodable` for `Uint` accepting leading zeros, lists and the two-byte form of single bytes below `0x80` ([#686])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
+[#686]: https://github.com/alloy-rs/ruint/pull/686
 
 ## [1.21.0] - 2026-10-20
 
