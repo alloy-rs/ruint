@@ -187,7 +187,7 @@ impl<const BITS: usize, const LIMBS: usize> Decode for CompactUint<BITS, LIMBS> 
                     prefix: Some(prefix),
                     input,
                 })? >> 2; // right shift to remove mode bits
-                if (0b0011_1111..=0b0011_1111_1111_1111).contains(&x) {
+                if (0b0100_0000..=0b0011_1111_1111_1111).contains(&x) {
                     x.try_into().map_err(|_| Error::from(OUT_OF_RANGE))?
                 } else {
                     return Err(Error::from(OUT_OF_RANGE));
@@ -198,7 +198,7 @@ impl<const BITS: usize, const LIMBS: usize> Decode for CompactUint<BITS, LIMBS> 
                     prefix: Some(prefix),
                     input,
                 })? >> 2; // right shift to remove mode bits
-                if (0b0011_1111_1111_1111..=u32::MAX >> 2).contains(&x) {
+                if (0b0100_0000_0000_0000..=u32::MAX >> 2).contains(&x) {
                     x.try_into().map_err(|_| Error::from(OUT_OF_RANGE))?
                 } else {
                     return Err(OUT_OF_RANGE.into());
@@ -235,20 +235,7 @@ impl<const BITS: usize, const LIMBS: usize> Decode for CompactUint<BITS, LIMBS> 
                         .collect::<Result<Vec<_>, _>>()?;
                     let x = Uint::<BITS, LIMBS>::try_from_le_slice(&le_byte_slice)
                         .ok_or_else(|| Error::from("value is larger than fits the Uint"))?;
-                    let bits = bytes as usize * 8;
-                    let limbs = bits.div_ceil(64);
-
-                    let mut new_limbs = vec![u64::MAX; limbs];
-                    if bits > 0 {
-                        new_limbs[limbs - 1] &= if bits.is_multiple_of(64) {
-                            u64::MAX
-                        } else {
-                            (1 << (bits % 64)) - 1
-                        }
-                    }
-                    if Uint::<COMPACT_BITS_LIMIT, 9>::from(x)
-                        > Uint::from_limbs_slice(&new_limbs) >> ((68 - bytes as usize + 1) * 8)
-                    {
+                    if le_byte_slice.last() != Some(&0) {
                         x
                     } else {
                         return Err(OUT_OF_RANGE.into());
@@ -311,6 +298,78 @@ mod tests {
                 }
             });
         });
+    }
+
+    fn decode_compact(bytes: &[u8]) -> Result<U256, Error> {
+        CompactUint::<256, 4>::decode(&mut &*bytes).map(|c| c.0)
+    }
+
+    #[test]
+    fn test_scale_compact_rejects_non_canonical_mode1() {
+        // Mode 1 encoding of 63, which fits in mode 0.
+        assert!(decode_compact(&[0xfd, 0x00]).is_err());
+    }
+
+    #[test]
+    fn test_scale_compact_rejects_non_canonical_mode2() {
+        // Mode 2 encoding of 2**14 - 1, which fits in mode 1.
+        assert!(decode_compact(&[0xfe, 0xff, 0x00, 0x00]).is_err());
+    }
+
+    #[test]
+    fn test_scale_compact_rejects_non_canonical_big_integer() {
+        // Big-integer encodings with a zero most-significant byte.
+        assert!(decode_compact(&[0x07, 0x01, 0x00, 0x00, 0x00, 0x00]).is_err());
+        assert!(decode_compact(&[&[0x73, 1][..], &[0; 31]].concat()).is_err());
+    }
+
+    #[test]
+    fn test_scale_compact_boundaries() {
+        let mut values = vec![U256::ZERO, U256::from(1)];
+        for bits in [6, 14, 30] {
+            values.push(U256::from(1u64 << bits) - U256::from(1));
+            values.push(U256::from(1u64 << bits));
+        }
+        for bits in (31..256).step_by(8).chain([255]) {
+            values.push((U256::from(1) << bits) - U256::from(1));
+            values.push(U256::from(1) << bits);
+        }
+
+        for value in values {
+            let canonical = CompactRefUint(&value).encode();
+            assert_eq!(decode_compact(&canonical).unwrap(), value);
+
+            // Every other encoding of `value`, one per mode and big-integer
+            // byte count.
+            let le = value.to_le_bytes::<32>();
+            let mut encodings = Vec::new();
+            if value < U256::from(1u64 << 6) {
+                encodings.push(vec![le[0] << 2]);
+            }
+            if value < U256::from(1u64 << 14) {
+                encodings.push(
+                    (((le[0] as u16) | ((le[1] as u16) << 8)) << 2 | 0b01)
+                        .to_le_bytes()
+                        .to_vec(),
+                );
+            }
+            if value < U256::from(1u64 << 30) {
+                let x = u32::from_le_bytes([le[0], le[1], le[2], le[3]]);
+                encodings.push(((x << 2) | 0b10).to_le_bytes().to_vec());
+            }
+            for n in 4..=32usize {
+                if le[n..].iter().all(|&b| b == 0) {
+                    encodings.push([&[(((n - 4) << 2) | 0b11) as u8][..], &le[..n]].concat());
+                }
+            }
+            for encoding in encodings {
+                assert_eq!(
+                    decode_compact(&encoding).is_ok(),
+                    encoding == canonical,
+                    "value {value}, encoding {encoding:02x?}"
+                );
+            }
+        }
     }
 
     #[test]
