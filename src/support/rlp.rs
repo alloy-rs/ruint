@@ -89,14 +89,14 @@ mod test {
     #[test]
     fn test_uint_decode_non_canonical() {
         assert_eq!(U256::decode(&Rlp::new(&hex!("80"))), Ok(U256::ZERO));
-        for bytes in [
-            &hex!("820001")[..],
-            &hex!("8105"),
-            &hex!("c105"),
-            &hex!("c0"),
-            &hex!("00"),
+        for (bytes, error) in [
+            (&hex!("820001")[..], DecoderError::RlpInvalidIndirection),
+            (&hex!("8105"), DecoderError::RlpInvalidIndirection),
+            (&hex!("00"), DecoderError::RlpInvalidIndirection),
+            (&hex!("c105"), DecoderError::RlpExpectedToBeData),
+            (&hex!("c0"), DecoderError::RlpExpectedToBeData),
         ] {
-            assert!(U256::decode(&Rlp::new(bytes)).is_err(), "{bytes:02x?}");
+            assert_eq!(U256::decode(&Rlp::new(bytes)), Err(error), "{bytes:02x?}");
         }
     }
 
