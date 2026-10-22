@@ -378,8 +378,18 @@ mod tests {
             type U = Uint<BITS, LIMBS>;
             type W = Uint<BITS_W, LIMBS_W>;
             proptest!(|(a: U, b: U, m: U, shift in 0..BITS)| {
+                // Moduli at and around the limb-aligned high half of the product
+                // put the highest quotient limb on the edge between zero and one.
+                let high = U::from(a.widening_mul::<BITS, LIMBS, BITS_W, LIMBS_W>(b) >> (64 * LIMBS));
                 // Vary the modulus size to cover every normalization shift.
-                for (a, m) in [(a, m >> shift), (a, U::MAX), (a >> shift, U::MAX)] {
+                for (a, m) in [
+                    (a, m >> shift),
+                    (a, U::MAX),
+                    (a >> shift, U::MAX),
+                    (a, high),
+                    (a, high.saturating_add(U::ONE)),
+                    (a, high.saturating_sub(U::ONE)),
+                ] {
                     let expected = if m.is_zero() {
                         U::ZERO
                     } else {
@@ -390,6 +400,9 @@ mod tests {
             });
             assert_eq!(U::MAX.mul_mod(U::ONE, U::MAX), U::ZERO);
             assert_eq!(U::MAX.mul_mod(U::MAX, U::MAX), U::ZERO);
+            if BITS >= 2 {
+                assert_eq!(U::MAX.mul_mod(U::MAX, U::MAX - U::ONE), U::ONE);
+            }
         });
     }
 
