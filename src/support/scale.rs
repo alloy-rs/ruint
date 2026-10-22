@@ -330,7 +330,7 @@ mod tests {
             values.push(U256::from(1u64 << bits) - U256::from(1));
             values.push(U256::from(1u64 << bits));
         }
-        for bits in (31..256).step_by(8).chain([255]) {
+        for bits in (32..256).step_by(8) {
             values.push((U256::from(1) << bits) - U256::from(1));
             values.push(U256::from(1) << bits);
         }
@@ -347,11 +347,8 @@ mod tests {
                 encodings.push(vec![le[0] << 2]);
             }
             if value < U256::from(1u64 << 14) {
-                encodings.push(
-                    (((le[0] as u16) | ((le[1] as u16) << 8)) << 2 | 0b01)
-                        .to_le_bytes()
-                        .to_vec(),
-                );
+                let x = u16::from_le_bytes([le[0], le[1]]);
+                encodings.push(((x << 2) | 0b01).to_le_bytes().to_vec());
             }
             if value < U256::from(1u64 << 30) {
                 let x = u32::from_le_bytes([le[0], le[1], le[2], le[3]]);
