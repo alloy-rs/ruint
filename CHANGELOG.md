@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Wrong `mul_mod` result when the product's top limbs equal the modulus's
+
 ## [1.21.0] - 2026-10-20
 
 ### Added

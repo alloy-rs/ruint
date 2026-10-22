@@ -132,7 +132,7 @@ pub(crate) unsafe fn rem_nxm_spare_limb(numerator: &mut [u64], divisor: &mut [u6
     let skip = len > n + 1
         && numerator[len - 1] == 0
         && DW::join(numerator[len - 2], numerator[len - 3])
-            <= DW::join(divisor[n - 1], divisor[n - 2]);
+            < DW::join(divisor[n - 1], divisor[n - 2]);
 
     // SAFETY: The divisor is normalized, and the numerator has more limbs than
     // the divisor. The highest numerator limb holds at most `shift` bits, so it
