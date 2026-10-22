@@ -26,7 +26,7 @@
 use crate::Uint;
 use pyo3::{
     Bound, FromPyObject, IntoPyObject, PyAny, PyErr, PyResult, Python,
-    exceptions::{PyOverflowError, PyValueError},
+    exceptions::PyOverflowError,
     ffi,
     types::{PyAnyMethods, PyInt},
 };
@@ -145,11 +145,13 @@ fn write_le_bytes(num: &Bound<'_, PyAny>, buf: &mut [u8]) -> PyResult<()> {
             Err(_) => {
                 // Only a negative value raises `ValueError`.
                 let err = PyErr::fetch(num.py());
-                Err(if err.is_instance_of::<PyValueError>(num.py()) {
-                    PyOverflowError::new_err("can't convert negative int to unsigned")
-                } else {
-                    err
-                })
+                Err(
+                    if err.is_instance_of::<pyo3::exceptions::PyValueError>(num.py()) {
+                        PyOverflowError::new_err("can't convert negative int to unsigned")
+                    } else {
+                        err
+                    },
+                )
             }
         }
     }
@@ -175,9 +177,18 @@ mod test {
     };
     use proptest::proptest;
     use pyo3::{
+        PyTypeInfo,
         exceptions::PyTypeError,
         types::{PyBytes, PyList, PyString},
     };
+
+    fn err_is<T: for<'a> FromPyObject<'a> + core::fmt::Debug, E: PyTypeInfo>(
+        obj: &Bound<'_, PyAny>,
+    ) -> bool {
+        T::extract_bound(obj)
+            .unwrap_err()
+            .is_instance_of::<E>(obj.py())
+    }
 
     #[test]
     fn test_roundtrip() {
@@ -200,59 +211,23 @@ mod test {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py: Python<'_>| {
             let obj = (-1_i64).into_pyobject(py).unwrap();
-            assert!(
-                U0::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
-            assert!(
-                U256::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
+            assert!(err_is::<U0, PyOverflowError>(&obj));
+            assert!(err_is::<U256, PyOverflowError>(&obj));
 
             let obj = (-(1_i128 << 100)).into_pyobject(py).unwrap();
-            assert!(
-                U256::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
+            assert!(err_is::<U256, PyOverflowError>(&obj));
 
             let obj = (1000_i64).into_pyobject(py).unwrap();
-            assert!(
-                U0::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
-            assert!(
-                U8::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
+            assert!(err_is::<U0, PyOverflowError>(&obj));
+            assert!(err_is::<U8, PyOverflowError>(&obj));
 
             let obj = U512::MAX.into_pyobject(py).unwrap();
-            assert!(
-                U0::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
-            assert!(
-                U64::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
-            assert!(
-                U256::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
+            assert!(err_is::<U0, PyOverflowError>(&obj));
+            assert!(err_is::<U64, PyOverflowError>(&obj));
+            assert!(err_is::<U256, PyOverflowError>(&obj));
 
             let obj = (U512::ONE << 256_usize).into_pyobject(py).unwrap();
-            assert!(
-                U256::extract_bound(&obj)
-                    .unwrap_err()
-                    .is_instance_of::<PyOverflowError>(py)
-            );
+            assert!(err_is::<U256, PyOverflowError>(&obj));
         });
     }
 
@@ -268,21 +243,9 @@ mod test {
                 PyBytes::new(py, &[1]).into_any(),
             ];
             for obj in &objs {
-                assert!(
-                    U0::extract_bound(obj)
-                        .unwrap_err()
-                        .is_instance_of::<PyTypeError>(py)
-                );
-                assert!(
-                    U64::extract_bound(obj)
-                        .unwrap_err()
-                        .is_instance_of::<PyTypeError>(py)
-                );
-                assert!(
-                    U256::extract_bound(obj)
-                        .unwrap_err()
-                        .is_instance_of::<PyTypeError>(py)
-                );
+                assert!(err_is::<U0, PyTypeError>(obj));
+                assert!(err_is::<U64, PyTypeError>(obj));
+                assert!(err_is::<U256, PyTypeError>(obj));
             }
         });
     }
