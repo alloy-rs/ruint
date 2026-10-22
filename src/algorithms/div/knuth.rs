@@ -17,9 +17,9 @@ use crate::{
 ///   limb(s) hold the quotient. (Equal lengths are NOT permitted.)
 /// - The quotient MUST fit in `numerator.len() - divisor.len()` limbs; that is,
 ///   `numerator / divisor < 2^(64 * (numerator.len() - divisor.len()))`. This
-///   holds if the two most-significant limbs of `numerator` are strictly less
-///   than the two most-significant limbs of `divisor`, but is not implied by
-///   them being less than or equal.
+///   holds if the 128-bit value formed by the two most-significant limbs of
+///   `numerator` is strictly less than that of `divisor`. Equality is not
+///   sufficient.
 ///
 /// In debug mode, panics if any condition of use is violated. In release, may
 /// panic or trigger UB if any condition of use is violated.
