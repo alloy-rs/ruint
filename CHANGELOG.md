@@ -14,13 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrong `mul_mod` result when the product's top limbs equal the modulus's ([#681])
 - Wrong `to_base_be` digits for zero and exact powers of the base without the `alloc` feature ([#683])
 - `uint!` accepting a digit equal to the base, such as `10a_U64` ([#683])
+- Panic in the SSZ and bincode 2 decoders for `Uint` when the input sets bits above `BITS`; they now return an error ([#684])
+- `CompactUint::decode` accepting non-canonical SCALE compact encodings with a redundant mode or a zero most-significant byte ([#688])
 - Panic in `FromSql` for `NUMERIC` values with weight 32767 ([#687])
 - Panic or wrong value in `FromSql` for `BIT` and `VARBIT` when the payload does not match the bit length ([#687])
 - Panic in `FromSql` for empty `JSONB` and for `JSON` and `JSONB` payloads of a single quote ([#687])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
+[#684]: https://github.com/alloy-rs/ruint/pull/684
 [#687]: https://github.com/alloy-rs/ruint/pull/687
+[#688]: https://github.com/alloy-rs/ruint/pull/688
 
 ## [1.21.0] - 2026-10-20
 
