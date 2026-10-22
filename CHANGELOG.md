@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Wrong `mul_mod` result when the product's top limbs equal the modulus's
+- Wrong `mul_mod` result when the product's top limbs equal the modulus's ([#681])
+
+[#681]: https://github.com/alloy-rs/ruint/pull/681
 
 ## [1.21.0] - 2026-10-20
 
