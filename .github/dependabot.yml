@@ -11,21 +11,3 @@ updates:
       ci-weekly:
         patterns:
           - "*"
-  - package-ecosystem: cargo
-    directory: /
-    allow:
-      - dependency-type: all
-    schedule:
-      interval: weekly
-      day: monday
-      time: "09:00"
-      timezone: UTC
-    cooldown:
-      default-days: 7
-    # Libraries keep their version requirements; only Cargo.lock moves.
-    versioning-strategy: lockfile-only
-    open-pull-requests-limit: 1
-    groups:
-      cargo-weekly:
-        patterns:
-          - '*'
