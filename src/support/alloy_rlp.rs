@@ -76,21 +76,60 @@ impl<const BITS: usize, const LIMBS: usize> Encodable for Uint<BITS, LIMBS> {
 impl<const BITS: usize, const LIMBS: usize> Decodable for Uint<BITS, LIMBS> {
     #[inline]
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        let bytes = Header::decode_bytes(buf, false)?;
-
-        // The RLP spec states that deserialized positive integers with leading
-        // zeroes get treated as invalid.
-        //
-        // See:
-        // https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
-        //
-        // To check this, we only need to check if the first byte is zero to
-        // make sure there are no leading zeros
-        if !bytes.is_empty() && bytes[0] == 0 {
-            return Err(Error::LeadingZero);
+        // Fast paths for full-limb types: a single byte, a short string of
+        // exactly `BYTES` bytes, or a string of at most 8 bytes. Lists, long
+        // strings, truncated input and overflow take the slow path.
+        if BITS.is_multiple_of(64)
+            && LIMBS > 0
+            && let Some((&first, rest)) = buf.split_first()
+        {
+            let mut limbs = [0; LIMBS];
+            if first < EMPTY_STRING_CODE {
+                if first == 0 {
+                    return Err(Error::LeadingZero);
+                }
+                limbs[0] = u64::from(first);
+                *buf = rest;
+                return Ok(Self::from_limbs(limbs));
+            }
+            let len = usize::from(first - EMPTY_STRING_CODE);
+            if BITS <= MAX_BITS
+                && len == Self::BYTES
+                && let Some((bytes, rest)) = rest.split_at_checked(len)
+            {
+                if bytes[0] == 0 {
+                    return Err(Error::LeadingZero);
+                }
+                for (i, limb) in limbs.iter_mut().enumerate() {
+                    let at = Self::BYTES - 8 * (i + 1);
+                    *limb = u64::from_be_bytes(bytes[at..at + 8].try_into().unwrap());
+                }
+                *buf = rest;
+                return Ok(Self::from_limbs(limbs));
+            }
+            if len <= 8
+                && let Some((payload, tail)) = rest.split_at_checked(len)
+            {
+                if let Some(&byte) = payload.first() {
+                    if len == 1 && byte < EMPTY_STRING_CODE {
+                        return Err(Error::NonCanonicalSingleByte);
+                    }
+                    if byte == 0 {
+                        return Err(Error::LeadingZero);
+                    }
+                    // Load a whole word and shift out the bytes after the
+                    // payload. Near the end of `buf` there is no whole word,
+                    // so fold the payload instead.
+                    limbs[0] = match rest.first_chunk::<8>() {
+                        Some(word) => u64::from_be_bytes(*word) >> (64 - 8 * len),
+                        None => payload.iter().fold(0, |v, &x| v << 8 | u64::from(x)),
+                    };
+                }
+                *buf = tail;
+                return Ok(Self::from_limbs(limbs));
+            }
         }
-
-        Self::try_from_be_slice(bytes).ok_or(Error::Overflow)
+        decode_slow(buf)
     }
 }
 
@@ -113,11 +152,32 @@ unsafe impl<const BITS: usize, const LIMBS: usize> MaxEncodedLenAssoc for Uint<B
     const LEN: usize = Self::BYTES + length_of_length(Self::BYTES);
 }
 
+#[inline(never)]
+fn decode_slow<const BITS: usize, const LIMBS: usize>(
+    buf: &mut &[u8],
+) -> Result<Uint<BITS, LIMBS>, Error> {
+    let bytes = Header::decode_bytes(buf, false)?;
+
+    // The RLP spec states that deserialized positive integers with leading
+    // zeroes get treated as invalid.
+    //
+    // See:
+    // https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
+    //
+    // To check this, we only need to check if the first byte is zero to
+    // make sure there are no leading zeros
+    if !bytes.is_empty() && bytes[0] == 0 {
+        return Err(Error::LeadingZero);
+    }
+
+    Uint::try_from_be_slice(bytes).ok_or(Error::Overflow)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        aliases::{U0, U256},
+        aliases::{U0, U256, U512},
         const_for, nlimbs,
     };
     use hex_literal::hex;
@@ -158,6 +218,13 @@ mod test {
                 let deserialized = Uint::decode(&mut reader).unwrap();
                 assert_eq!(reader.len(), 0);
                 assert_eq!(value, deserialized);
+
+                // Trailing bytes must stay unread.
+                let mut trailing = serialized.clone();
+                trailing.extend_from_slice(&[0xff; 9]);
+                let mut reader = &trailing[..];
+                assert_eq!(Uint::decode(&mut reader).unwrap(), value);
+                assert_eq!(reader, [0xff; 9]);
             });
         });
     }
@@ -185,6 +252,20 @@ mod test {
         assert_eq!(
             U256::decode(&mut &hex!("8133")[..]),
             Err(Error::NonCanonicalSingleByte)
+        );
+
+        // `0xc0` is a list header, not a 64-byte string.
+        let mut list = vec![0xc0];
+        list.extend_from_slice(&[1; 64]);
+        assert_eq!(U512::decode(&mut &list[..]), Err(Error::UnexpectedList));
+        // Truncated payloads.
+        assert_eq!(
+            U256::decode(&mut &hex!("82ff")[..]),
+            Err(Error::InputTooShort)
+        );
+        assert_eq!(
+            U256::decode(&mut &hex!("a0ff")[..]),
+            Err(Error::InputTooShort)
         );
     }
 }

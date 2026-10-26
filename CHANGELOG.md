@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Undefined behavior when extracting a `Uint` from a non-`int` Python object with the `pyo3` feature, which now raises `TypeError` ([#690])
 - Wrong `_PyLong_AsByteArray` call on Python 3.13 and later when extracting a `Uint` with the `pyo3` feature ([#690])
 
+### Changed
+
+- Optimize `alloy-rlp` `Decodable` for `Uint` with a multiple of 64 bits for single bytes, full-width values and values of up to 8 bytes
+
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
 [#684]: https://github.com/alloy-rs/ruint/pull/684
