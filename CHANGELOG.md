@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Optimize `alloy-rlp` `Decodable` for `Uint` with a multiple of 64 bits for single bytes, full-width values and values of up to 8 bytes
+- Optimize `alloy-rlp` `Decodable` for `Uint` with a multiple of 64 bits for single bytes, full-width values and values of up to 8 bytes ([#698])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#688]: https://github.com/alloy-rs/ruint/pull/688
 [#689]: https://github.com/alloy-rs/ruint/pull/689
 [#690]: https://github.com/alloy-rs/ruint/pull/690
+[#698]: https://github.com/alloy-rs/ruint/pull/698
 
 ## [1.21.0] - 2026-10-20
 
