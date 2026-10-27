@@ -37,29 +37,29 @@ repository = "https://github.com/alloy-rs/ruint"
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
-missing-inline-in-public-items = "warn"
-std-instead-of-alloc = "warn"
-std-instead-of-core = "warn"
+missing_inline_in_public_items = "warn"
+std_instead_of_alloc = "warn"
+std_instead_of_core = "warn"
 
-doc-markdown = "allow" # Unfortunately many false positives on Latex.
-inline-always = "allow"
-module-name-repetitions = "allow"
-redundant-pub-crate = "allow"
-unreadable-literal = "allow"
-let-unit-value = "allow"
-option-if-let-else = "allow"
-cast-sign-loss = "allow"
-cast-lossless = "allow"
+doc_markdown = "allow" # Unfortunately many false positives on Latex.
+inline_always = "allow"
+module_name_repetitions = "allow"
+redundant_pub_crate = "allow"
+unreadable_literal = "allow"
+let_unit_value = "allow"
+option_if_let_else = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
 
 [workspace.lints.rust]
-missing-copy-implementations = "warn"
-missing-debug-implementations = "warn"
-missing-docs = "warn"
-rust-2018-idioms = "warn"
-unreachable-pub = "warn"
-unused-must-use = "warn"
-redundant-lifetimes = "warn"
-unnameable-types = "warn"
+missing_copy_implementations = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+rust_2018_idioms = "warn"
+unreachable_pub = "warn"
+unused_must_use = "warn"
+redundant_lifetimes = "warn"
+unnameable_types = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"
