@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The postgres `ToSqlError::Overflow` and `FromSqlError::Overflow` messages no longer name `Uint` ([#695])
+- Optimize `rlp` `Encodable` for `Uint` of more than two limbs and at most 55 bytes by writing the header and the payload with one `put_slice` ([#697])
 
 ### Fixed
 
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#689]: https://github.com/alloy-rs/ruint/pull/689
 [#690]: https://github.com/alloy-rs/ruint/pull/690
 [#695]: https://github.com/alloy-rs/ruint/pull/695
+[#697]: https://github.com/alloy-rs/ruint/pull/697
 
 ## [1.21.0] - 2026-10-20
 
