@@ -55,7 +55,7 @@ cast_lossless = "allow"
 missing_copy_implementations = "warn"
 missing_debug_implementations = "warn"
 missing_docs = "warn"
-rust_2018_idioms = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
 unreachable_pub = "warn"
 unused_must_use = "warn"
 redundant_lifetimes = "warn"
