@@ -251,12 +251,33 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return Some(Self::from_limbs(limbs));
         }
 
+        // Whole limbs load from the end. The top partial limb loads the first 8
+        // bytes and shifts out the ones that belong to the next limb, or for
+        // short slices combines two overlapping smaller loads. Constant limb
+        // indices keep the limbs in registers.
+        let len = bytes.len();
+        let (full, rem) = (len / 8, len % 8);
+        let start = bytes.as_ptr();
+        let end = bytes.as_ptr_range().end;
         let mut limbs = [0; LIMBS];
-        let mut c = bytes.len();
-        const_range_for!(i in 0..bytes.len() => {
-            c -= 1;
-            let (limb, byte) = (i / 8, i % 8);
-            limbs[limb] += (bytes[c] as u64) << (byte * 8);
+        const_range_for!(i in 0..LIMBS => {
+            if i < full {
+                limbs[i] = u64::from_be_bytes(unsafe { *end.sub((i + 1) * 8).cast() });
+            } else if i == full && rem != 0 {
+                limbs[i] = if len >= 8 {
+                    u64::from_be_bytes(unsafe { *start.cast() }) >> (64 - 8 * rem)
+                } else if len >= 4 {
+                    let hi = u32::from_be_bytes(unsafe { *start.cast() }) as u64;
+                    let lo = u32::from_be_bytes(unsafe { *end.sub(4).cast() }) as u64;
+                    hi << (8 * (len - 4)) | lo
+                } else if len >= 2 {
+                    let hi = u16::from_be_bytes(unsafe { *start.cast() }) as u64;
+                    let lo = u16::from_be_bytes(unsafe { *end.sub(2).cast() }) as u64;
+                    hi << (8 * (len - 2)) | lo
+                } else {
+                    bytes[0] as u64
+                };
+            }
         });
         if LIMBS > 0 && limbs[LIMBS - 1] > Self::MASK {
             return None;
@@ -324,10 +345,33 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
             return Some(Self::from_limbs(limbs));
         }
 
+        // Whole limbs load from the start. The top partial limb loads the last
+        // 8 bytes and shifts out the ones that belong to the previous limb, or
+        // for short slices combines two overlapping smaller loads. Constant
+        // limb indices keep the limbs in registers.
+        let len = bytes.len();
+        let (full, rem) = (len / 8, len % 8);
+        let start = bytes.as_ptr();
+        let end = bytes.as_ptr_range().end;
         let mut limbs = [0; LIMBS];
-        const_range_for!(i in 0..bytes.len() => {
-            let (limb, byte) = (i / 8, i % 8);
-            limbs[limb] += (bytes[i] as u64) << (byte * 8);
+        const_range_for!(i in 0..LIMBS => {
+            if i < full {
+                limbs[i] = u64::from_le_bytes(unsafe { *start.add(i * 8).cast() });
+            } else if i == full && rem != 0 {
+                limbs[i] = if len >= 8 {
+                    u64::from_le_bytes(unsafe { *end.sub(8).cast() }) >> (64 - 8 * rem)
+                } else if len >= 4 {
+                    let lo = u32::from_le_bytes(unsafe { *start.cast() }) as u64;
+                    let hi = u32::from_le_bytes(unsafe { *end.sub(4).cast() }) as u64;
+                    hi << (8 * (len - 4)) | lo
+                } else if len >= 2 {
+                    let lo = u16::from_le_bytes(unsafe { *start.cast() }) as u64;
+                    let hi = u16::from_le_bytes(unsafe { *end.sub(2).cast() }) as u64;
+                    hi << (8 * (len - 2)) | lo
+                } else {
+                    bytes[0] as u64
+                };
+            }
         });
         if LIMBS > 0 && limbs[LIMBS - 1] > Self::MASK {
             return None;
@@ -581,6 +625,42 @@ mod tests {
             Uint::<72, 2>::try_from_le_slice(&[&KLE[..], &[0xff]].concat()),
             None
         );
+    }
+
+    #[test]
+    fn test_try_from_slice_matches_reference() {
+        const_for!(BITS in [0, 1, 7, 8, 9, 63, 64, 65, 72, 127, 128, 129, 256, 440, 512] {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+
+            // Byte-by-byte reference for a little-endian slice.
+            let reference = |le: &[u8]| {
+                if le.len() > U::BYTES {
+                    return None;
+                }
+                let mut limbs = [0; LIMBS];
+                for (i, &byte) in le.iter().enumerate() {
+                    limbs[i / 8] |= u64::from(byte) << (8 * (i % 8));
+                }
+                U::checked_from_limbs_slice(&limbs)
+            };
+
+            let mut seed = 0x1234_5678_9abc_def1_u64;
+            let mut next = move || {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                (seed >> 24) as u8
+            };
+            for len in 0..=U::BYTES + 1 {
+                for _ in 0..16 {
+                    let le = (0..len).map(|_| next()).collect::<Vec<_>>();
+                    let be = le.iter().rev().copied().collect::<Vec<_>>();
+                    assert_eq!(U::try_from_le_slice(&le), reference(&le), "le {BITS} {len}");
+                    assert_eq!(U::try_from_be_slice(&be), reference(&le), "be {BITS} {len}");
+                }
+            }
+        });
     }
 
     #[test]
