@@ -9,8 +9,6 @@ use alloy_rlp::{
     MaxEncodedLenAssoc, length_of_length,
 };
 
-const MAX_BITS: usize = 55 * 8;
-
 /// Allows a [`Uint`] to be serialized as RLP.
 ///
 /// See <https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/>
@@ -37,36 +35,43 @@ impl<const BITS: usize, const LIMBS: usize> Encodable for Uint<BITS, LIMBS> {
             _ => {}
         }
 
-        match self.bit_len() {
-            0 => out.put_u8(EMPTY_STRING_CODE),
-            1..=7 => {
-                #[allow(clippy::cast_possible_truncation)] // self < 128
-                out.put_u8(self.limbs[0] as u8);
-            }
-            bits => {
-                // avoid heap allocation in `to_be_bytes_vec`
-                // SAFETY: we don't re-use `copy`
-                #[cfg(target_endian = "little")]
-                let mut copy = *self;
-                #[cfg(target_endian = "little")]
-                let bytes = unsafe { copy.as_le_slice_mut() };
-                #[cfg(target_endian = "little")]
-                bytes.reverse();
-
-                #[cfg(target_endian = "big")]
-                let bytes = self.to_be_bytes_vec();
-
-                let leading_zero_bytes = Self::BYTES - bits.div_ceil(8);
-                let trimmed = &bytes[leading_zero_bytes..];
-                if bits > MAX_BITS {
-                    trimmed.encode(out);
-                } else {
-                    #[allow(clippy::cast_possible_truncation)] // bytes.len() < 56 < 256
-                    out.put_u8(EMPTY_STRING_CODE + trimmed.len() as u8);
-                    out.put_slice(trimmed);
-                }
-            }
+        let bits = self.bit_len();
+        if bits <= 7 {
+            #[allow(clippy::cast_possible_truncation)] // self < 128
+            return out.put_u8(if bits == 0 {
+                EMPTY_STRING_CODE
+            } else {
+                self.limbs[0] as u8
+            });
         }
+        let len = bits.div_ceil(8);
+        if Self::BYTES <= 55 {
+            // Write the header and the big-endian payload with one `put_slice`.
+            let mut buf = [0u8; 64];
+            for (i, limb) in self.limbs.iter().enumerate() {
+                let at = 64 - 8 * (i + 1);
+                buf[at..at + 8].copy_from_slice(&limb.to_be_bytes());
+            }
+            let start = 63 - len;
+            #[allow(clippy::cast_possible_truncation)] // len < 56
+            let header = EMPTY_STRING_CODE + len as u8;
+            buf[start] = header;
+            return out.put_slice(&buf[start..]);
+        }
+
+        // avoid heap allocation in `to_be_bytes_vec`
+        // SAFETY: we don't re-use `copy`
+        #[cfg(target_endian = "little")]
+        let mut copy = *self;
+        #[cfg(target_endian = "little")]
+        let bytes = unsafe { copy.as_le_slice_mut() };
+        #[cfg(target_endian = "little")]
+        bytes.reverse();
+
+        #[cfg(target_endian = "big")]
+        let bytes = self.to_be_bytes_vec();
+
+        bytes[Self::BYTES - len..].encode(out);
     }
 }
 
@@ -159,6 +164,26 @@ mod test {
                 assert_eq!(reader.len(), 0);
                 assert_eq!(value, deserialized);
             });
+        });
+    }
+
+    #[test]
+    fn test_roundtrip_55_byte_boundary() {
+        const_for!(BITS in [432, 433, 440, 441, 448] {
+            const LIMBS: usize = nlimbs(BITS);
+            for shift in [0_usize, 1, 7, 8, 63, 64] {
+                let value = Uint::<BITS, LIMBS>::MAX >> shift;
+                let serialized = encode(value);
+
+                #[cfg(feature = "rlp")]
+                {
+                    use rlp::Encodable as _;
+                    assert_eq!(serialized, value.rlp_bytes().freeze()[..]);
+                }
+
+                assert_eq!(serialized.len(), value.length());
+                assert_eq!(Uint::<BITS, LIMBS>::decode(&mut &serialized[..]), Ok(value));
+            }
         });
     }
 

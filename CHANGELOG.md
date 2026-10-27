@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Optimize `rlp` `Encodable` for `Uint` of more than two limbs and at most 55 bytes by writing the header and the payload with one `put_slice` ([#697])
+
 ### Fixed
 
 - Wrong `mul_mod` result when the product's top limbs equal the modulus's ([#681])
@@ -33,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#688]: https://github.com/alloy-rs/ruint/pull/688
 [#689]: https://github.com/alloy-rs/ruint/pull/689
 [#690]: https://github.com/alloy-rs/ruint/pull/690
+[#697]: https://github.com/alloy-rs/ruint/pull/697
 
 ## [1.21.0] - 2026-10-20
 
