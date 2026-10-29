@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Signed integer type `Int`, with the `Sign` enum, `I0` to `I4096` aliases and `I` literals in `uint!` ([#695])
+- `serde`, `postgres`, `sqlx`, `bytemuck` and `zeroize` support for `Int` ([#695])
+- `sqlx-postgres` feature implementing `PgHasArrayType` for `Uint` and `Int`, mapping vectors to `BYTEA[]` ([#695])
+
 ### Changed
 
+- The postgres `ToSqlError::Overflow` and `FromSqlError::Overflow` messages no longer name `Uint` ([#695])
 - Optimize `rlp` `Encodable` for `Uint` of more than two limbs and at most 55 bytes by writing the header and the payload with one `put_slice` ([#697])
 
 ### Fixed
@@ -39,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#688]: https://github.com/alloy-rs/ruint/pull/688
 [#689]: https://github.com/alloy-rs/ruint/pull/689
 [#690]: https://github.com/alloy-rs/ruint/pull/690
+[#695]: https://github.com/alloy-rs/ruint/pull/695
 [#697]: https://github.com/alloy-rs/ruint/pull/697
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702

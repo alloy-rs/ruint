@@ -3,7 +3,7 @@
 #![cfg(feature = "proptest")]
 #![cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
 
-use crate::{Bits, Uint};
+use crate::{Bits, Int, Uint};
 use proptest::{arbitrary::Mapped, prelude::*};
 
 impl<const BITS: usize, const LIMBS: usize> Arbitrary for Uint<BITS, LIMBS> {
@@ -31,6 +31,15 @@ impl<const BITS: usize, const LIMBS: usize> Arbitrary for Bits<BITS, LIMBS> {
     }
 }
 
+impl<const BITS: usize, const LIMBS: usize> Arbitrary for Int<BITS, LIMBS> {
+    type Parameters = <Uint<BITS, LIMBS> as Arbitrary>::Parameters;
+    type Strategy = Mapped<Uint<BITS, LIMBS>, Self>;
+
+    fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
+        Uint::<BITS, LIMBS>::arbitrary_with(args).prop_map(Uint::cast_signed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -41,8 +50,8 @@ mod tests {
     fn test_arbitrary() {
         const_for!(BITS in SIZES {
             const LIMBS: usize = nlimbs(BITS);
-            proptest!(|(n: Uint::<BITS, LIMBS>)| {
-                let _ = n;
+            proptest!(|(n: Uint::<BITS, LIMBS>, i: Int::<BITS, LIMBS>)| {
+                let _ = (n, i);
             });
         });
     }

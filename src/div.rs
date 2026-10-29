@@ -146,8 +146,8 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     }
 }
 
-impl_bin_op!(Div, div, DivAssign, div_assign, wrapping_div);
-impl_bin_op!(Rem, rem, RemAssign, rem_assign, wrapping_rem);
+impl_bin_op!(Uint, Div, div, DivAssign, div_assign, wrapping_div);
+impl_bin_op!(Uint, Rem, rem, RemAssign, rem_assign, wrapping_rem);
 
 #[cfg(test)]
 mod tests {

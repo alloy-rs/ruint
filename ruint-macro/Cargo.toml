@@ -1,6 +1,6 @@
 [package]
 name = "ruint-macro"
-description = "The `uint!` macro for `Uint` and `Bits` literals"
+description = "The `uint!` macro for `Uint`, `Int` and `Bits` literals"
 version = "1.2.1"
 keywords = ["uint", "macro"]
 categories = ["mathematics"]

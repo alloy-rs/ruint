@@ -442,7 +442,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
     }
 
     #[track_caller]
-    const fn assert_bytes(bytes: usize) {
+    pub(crate) const fn assert_bytes(bytes: usize) {
         assert!(bytes == Self::BYTES, "BYTES must be equal to Self::BYTES");
     }
 }

@@ -123,6 +123,7 @@ diesel = { version = "2.2", optional = true }
 
 # sqlx
 sqlx-core = { version = "0.8.2", optional = true }
+sqlx-postgres = { version = "0.8.2", optional = true }
 
 # borsh
 borsh = { version = "1.5", optional = true, default-features = false }
@@ -194,6 +195,7 @@ rkyv = "=0.8.18"
 rlp = { version = "=0.5.2", default-features = false }
 serde_core = { version = "=1.0.229", default-features = false }
 sqlx-core = "=0.8.6"
+sqlx-postgres = "=0.8.6"
 subtle = { version = "=2.6.1", default-features = false }
 thiserror = "=2.0.20"
 valuable = { version = "=0.1.1", default-features = false }
@@ -283,6 +285,7 @@ rkyv = ["dep:rkyv", "alloc"]
 rlp = ["dep:rlp", "alloc"]
 serde = ["dep:serde_core", "alloc"] # TODO: try to avoid alloc in serde impls
 sqlx = ["dep:sqlx-core", "std", "dep:thiserror"]
+sqlx-postgres = ["sqlx", "dep:sqlx-postgres"]
 ssz = ["dep:ethereum_ssz", "std"]
 subtle = ["dep:subtle"]
 valuable = ["dep:valuable"]

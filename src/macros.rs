@@ -9,70 +9,130 @@ macro_rules! uint {
 }
 
 macro_rules! impl_bin_op {
-    ($trait:ident, $fn:ident, $trait_assign:ident, $fn_assign:ident, $fdel:ident) => {
-        impl<const BITS: usize, const LIMBS: usize> $trait_assign<Uint<BITS, LIMBS>>
-            for Uint<BITS, LIMBS>
+    ($ty:ident, $trait:ident, $fn:ident, $trait_assign:ident, $fn_assign:ident, $fdel:ident) => {
+        impl<const BITS: usize, const LIMBS: usize> $trait_assign<$ty<BITS, LIMBS>>
+            for $ty<BITS, LIMBS>
         {
             #[inline(always)]
             #[track_caller]
-            fn $fn_assign(&mut self, rhs: Uint<BITS, LIMBS>) {
+            fn $fn_assign(&mut self, rhs: $ty<BITS, LIMBS>) {
                 *self = self.$fdel(rhs);
             }
         }
-        impl<const BITS: usize, const LIMBS: usize> $trait_assign<&Uint<BITS, LIMBS>>
-            for Uint<BITS, LIMBS>
+        impl<const BITS: usize, const LIMBS: usize> $trait_assign<&$ty<BITS, LIMBS>>
+            for $ty<BITS, LIMBS>
         {
             #[inline(always)]
             #[track_caller]
-            fn $fn_assign(&mut self, rhs: &Uint<BITS, LIMBS>) {
+            fn $fn_assign(&mut self, rhs: &$ty<BITS, LIMBS>) {
                 *self = self.$fdel(*rhs);
             }
         }
-        impl<const BITS: usize, const LIMBS: usize> $trait<Uint<BITS, LIMBS>>
-            for Uint<BITS, LIMBS>
-        {
-            type Output = Uint<BITS, LIMBS>;
+        impl<const BITS: usize, const LIMBS: usize> $trait<$ty<BITS, LIMBS>> for $ty<BITS, LIMBS> {
+            type Output = $ty<BITS, LIMBS>;
 
             #[inline(always)]
             #[track_caller]
-            fn $fn(self, rhs: Uint<BITS, LIMBS>) -> Self::Output {
+            fn $fn(self, rhs: $ty<BITS, LIMBS>) -> Self::Output {
                 self.$fdel(rhs)
             }
         }
-        impl<const BITS: usize, const LIMBS: usize> $trait<&Uint<BITS, LIMBS>>
-            for Uint<BITS, LIMBS>
-        {
-            type Output = Uint<BITS, LIMBS>;
+        impl<const BITS: usize, const LIMBS: usize> $trait<&$ty<BITS, LIMBS>> for $ty<BITS, LIMBS> {
+            type Output = $ty<BITS, LIMBS>;
 
             #[inline(always)]
             #[track_caller]
-            fn $fn(self, rhs: &Uint<BITS, LIMBS>) -> Self::Output {
+            fn $fn(self, rhs: &$ty<BITS, LIMBS>) -> Self::Output {
                 self.$fdel(*rhs)
             }
         }
-        impl<const BITS: usize, const LIMBS: usize> $trait<Uint<BITS, LIMBS>>
-            for &Uint<BITS, LIMBS>
-        {
-            type Output = Uint<BITS, LIMBS>;
+        impl<const BITS: usize, const LIMBS: usize> $trait<$ty<BITS, LIMBS>> for &$ty<BITS, LIMBS> {
+            type Output = $ty<BITS, LIMBS>;
 
             #[inline(always)]
             #[track_caller]
-            fn $fn(self, rhs: Uint<BITS, LIMBS>) -> Self::Output {
-                self.$fdel(rhs)
+            fn $fn(self, rhs: $ty<BITS, LIMBS>) -> Self::Output {
+                <$ty<BITS, LIMBS>>::$fdel(*self, rhs)
             }
         }
-        impl<const BITS: usize, const LIMBS: usize> $trait<&Uint<BITS, LIMBS>>
-            for &Uint<BITS, LIMBS>
+        impl<const BITS: usize, const LIMBS: usize> $trait<&$ty<BITS, LIMBS>>
+            for &$ty<BITS, LIMBS>
         {
-            type Output = Uint<BITS, LIMBS>;
+            type Output = $ty<BITS, LIMBS>;
 
             #[inline(always)]
             #[track_caller]
-            fn $fn(self, rhs: &Uint<BITS, LIMBS>) -> Self::Output {
-                self.$fdel(*rhs)
+            fn $fn(self, rhs: &$ty<BITS, LIMBS>) -> Self::Output {
+                <$ty<BITS, LIMBS>>::$fdel(*self, *rhs)
             }
         }
     };
+}
+
+macro_rules! impl_shift {
+    (@main $ty:ident, $u:ty) => {
+        impl<const BITS: usize, const LIMBS: usize> Shl<$u> for $ty<BITS, LIMBS> {
+            type Output = Self;
+
+            #[inline(always)]
+            fn shl(self, rhs: $u) -> Self::Output {
+                // Amounts that do not fit in usize shift out the entire value.
+                self.wrapping_shl(usize::try_from(rhs).unwrap_or(usize::MAX))
+            }
+        }
+
+        impl<const BITS: usize, const LIMBS: usize> Shr<$u> for $ty<BITS, LIMBS> {
+            type Output = Self;
+
+            #[inline(always)]
+            fn shr(self, rhs: $u) -> Self::Output {
+                self.wrapping_shr(usize::try_from(rhs).unwrap_or(usize::MAX))
+            }
+        }
+    };
+
+    (@ref $ty:ident, $u:ty) => {
+        impl<const BITS: usize, const LIMBS: usize> Shl<&$u> for $ty<BITS, LIMBS> {
+            type Output = Self;
+
+            #[inline(always)]
+            fn shl(self, rhs: &$u) -> Self::Output {
+                <Self>::shl(self, *rhs)
+            }
+        }
+
+        impl<const BITS: usize, const LIMBS: usize> Shr<&$u> for $ty<BITS, LIMBS> {
+            type Output = Self;
+
+            #[inline(always)]
+            fn shr(self, rhs: &$u) -> Self::Output {
+                <Self>::shr(self, *rhs)
+            }
+        }
+    };
+
+    (@assign $ty:ident, $u:ty) => {
+        impl<const BITS: usize, const LIMBS: usize> ShlAssign<$u> for $ty<BITS, LIMBS> {
+            #[inline(always)]
+            fn shl_assign(&mut self, rhs: $u) {
+                *self = *self << rhs;
+            }
+        }
+
+        impl<const BITS: usize, const LIMBS: usize> ShrAssign<$u> for $ty<BITS, LIMBS> {
+            #[inline(always)]
+            fn shr_assign(&mut self, rhs: $u) {
+                *self = *self >> rhs;
+            }
+        }
+    };
+
+    ($ty:ident; $($u:ty),* $(,)?) => {$(
+        impl_shift!(@main $ty, $u);
+        impl_shift!(@ref $ty, $u);
+        impl_shift!(@assign $ty, $u);
+        impl_shift!(@assign $ty, &$u);
+    )*};
 }
 
 macro_rules! assume {
@@ -261,5 +321,15 @@ mod tests {
         assert_eq!(value, ruint_macro::uint_with_path!([aaa] 0x10U256));
         assert_eq!(value, ruint_macro::uint_with_path!([ruint] 0x10U256));
         assert_eq!(value, ruint_macro::uint_with_path!([__ruint] 0x10U256));
+    }
+
+    #[test]
+    fn test_int_literals() {
+        use crate::aliases::{I8, I256};
+        let x = I8::ONE;
+        assert_eq!(uint!(-128_I8), I8::MIN);
+        assert_eq!(uint!(x - 128_I8), I8::MIN + x);
+        assert_eq!(uint!(-0x80_I8 + 127_I8), I8::MINUS_ONE);
+        assert_eq!(uint!(-1_I256), I256::MINUS_ONE);
     }
 }

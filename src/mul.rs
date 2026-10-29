@@ -204,7 +204,7 @@ impl<'a, const BITS: usize, const LIMBS: usize> Product<&'a Self> for Uint<BITS,
     }
 }
 
-impl_bin_op!(Mul, mul, MulAssign, mul_assign, wrapping_mul);
+impl_bin_op!(Uint, Mul, mul, MulAssign, mul_assign, wrapping_mul);
 
 #[cfg(test)]
 mod tests {

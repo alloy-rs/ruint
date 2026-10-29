@@ -3,7 +3,7 @@
 #![cfg(feature = "arbitrary")]
 #![cfg_attr(docsrs, doc(cfg(feature = "arbitrary")))]
 
-use crate::Uint;
+use crate::{Int, Uint};
 use arbitrary::{Arbitrary, Result, Unstructured};
 
 // TODO: Instead of uniform random sampling, we should use a distribution that
@@ -30,6 +30,16 @@ impl<'a, const BITS: usize, const LIMBS: usize> Arbitrary<'a> for Uint<BITS, LIM
     }
 }
 
+impl<'a, const BITS: usize, const LIMBS: usize> Arbitrary<'a> for Int<BITS, LIMBS> {
+    fn arbitrary(u: &mut Unstructured<'a>) -> Result<Self> {
+        Uint::arbitrary(u).map(Uint::cast_signed)
+    }
+
+    fn size_hint(depth: usize) -> (usize, Option<usize>) {
+        Uint::<BITS, LIMBS>::size_hint(depth)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -47,6 +57,8 @@ mod tests {
             let bytes = repeat_n(0x55u8, num_bytes).collect::<Vec<_>>();
             let mut u = arbitrary::Unstructured::new(&bytes);
             Uint::<BITS, LIMBS>::arbitrary(&mut u).unwrap();
+            let mut u = arbitrary::Unstructured::new(&bytes);
+            Int::<BITS, LIMBS>::arbitrary(&mut u).unwrap();
         });
     }
 }

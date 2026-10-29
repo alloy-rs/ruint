@@ -51,6 +51,7 @@ mod modular;
 mod mul;
 mod pow;
 mod root;
+mod signed;
 mod special;
 mod string;
 mod utils;
@@ -65,6 +66,7 @@ pub use self::{
     base_convert::BaseConvertError,
     bytes::nbytes,
     from::{FromUintError, ToFieldError, ToUintError, UintTryFrom, UintTryTo},
+    signed::{Int, Sign},
     string::ParseError,
 };
 
@@ -100,6 +102,12 @@ pub mod nightly {
     ///
     /// See [`Uint`] for more information.
     pub type Bits<const BITS: usize> = crate::Bits<BITS, { crate::nlimbs(BITS) }>;
+
+    /// Alias for `Int` specified only by bit size.
+    ///
+    /// See [`Uint`] for more information about the alias, and [`crate::Int`]
+    /// for the type.
+    pub type Int<const BITS: usize> = crate::Int<BITS, { crate::nlimbs(BITS) }>;
 }
 
 /// Packed u128, for [`as_double_words`](Uint::as_double_words).

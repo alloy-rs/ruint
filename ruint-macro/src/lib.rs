@@ -35,17 +35,19 @@ pub fn uint_with_path(stream: TokenStream) -> TokenStream {
 #[derive(Copy, Clone, PartialEq, Debug)]
 enum LiteralBaseType {
     Uint,
+    Int,
     Bits,
 }
 
 impl LiteralBaseType {
-    const PATTERN: &'static [char] = &['U', 'B'];
+    const PATTERN: &'static [char] = &['U', 'I', 'B'];
 }
 
 impl fmt::Display for LiteralBaseType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Uint => f.write_str("Uint"),
+            Self::Int => f.write_str("Int"),
             Self::Bits => f.write_str("Bits"),
         }
     }
@@ -57,6 +59,7 @@ impl std::str::FromStr for LiteralBaseType {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "U" => Ok(Self::Uint),
+            "I" => Ok(Self::Int),
             "B" => Ok(Self::Bits),
             _ => Err(()),
         }
@@ -156,6 +159,18 @@ fn pad_limbs(bits: usize, mut limbs: Vec<u64>) -> Option<Vec<u64>> {
     Some(limbs)
 }
 
+/// Returns whether the padded `limbs` fit in a signed integer of `bits` bits.
+///
+/// `-2^(bits - 1)` is allowed after a `-`: it stands for `MIN`, which wraps to
+/// itself when negated.
+fn fits_signed(bits: usize, limbs: &[u64], negated: bool) -> bool {
+    let Some((&top, rest)) = limbs.split_last() else {
+        return true;
+    };
+    let sign_bit = 1 << ((bits - 1) % 64);
+    top & sign_bit == 0 || (negated && top == sign_bit && rest.iter().all(|&limb| limb == 0))
+}
+
 fn parse_suffix(source: &str) -> Option<(LiteralBaseType, usize, &str)> {
     // Parse into value, bits, and base type.
     let suffix_index = source.rfind(LiteralBaseType::PATTERN)?;
@@ -201,7 +216,13 @@ impl Transformer {
     }
 
     /// Transforms a [`Literal`] and returns the substitute [`TokenStream`].
-    fn transform_literal(&self, source: &str) -> Result<Option<TokenStream>, String> {
+    ///
+    /// `negated` is whether the literal follows a `-`.
+    fn transform_literal(
+        &self,
+        source: &str,
+        negated: bool,
+    ) -> Result<Option<TokenStream>, String> {
         // Check if literal has a suffix we accept.
         let Some((base_type, bits, value)) = parse_suffix(source) else {
             return Ok(None);
@@ -213,7 +234,9 @@ impl Transformer {
         let limbs = parse_digits(value)?;
 
         // Pad limbs to the correct length.
-        let Some(limbs) = pad_limbs(bits, limbs) else {
+        let Some(limbs) = pad_limbs(bits, limbs)
+            .filter(|limbs| base_type != LiteralBaseType::Int || fits_signed(bits, limbs, negated))
+        else {
             let value = value.trim_end_matches('_');
             return Err(format!("Value too large for {base_type}<{bits}>: {value}"));
         };
@@ -222,7 +245,9 @@ impl Transformer {
     }
 
     /// Recurse down tree and transform all literals.
-    fn transform_tree(&self, tree: TokenTree) -> TokenTree {
+    ///
+    /// `negated` is whether the tree follows a `-`.
+    fn transform_tree(&self, tree: TokenTree, negated: bool) -> TokenTree {
         match tree {
             TokenTree::Group(group) => {
                 let delimiter = group.delimiter();
@@ -235,7 +260,7 @@ impl Transformer {
             TokenTree::Literal(a) => {
                 let span = a.span();
                 let source = a.to_string();
-                let mut tree = match self.transform_literal(&source) {
+                let mut tree = match self.transform_literal(&source, negated) {
                     Ok(Some(stream)) => TokenTree::Group({
                         let mut group = Group::new(Delimiter::None, stream);
                         group.set_span(span);
@@ -253,10 +278,19 @@ impl Transformer {
 
     /// Iterate over a [`TokenStream`] and transform all [`TokenTree`]s.
     fn transform_stream(&self, stream: TokenStream) -> TokenStream {
-        stream
-            .into_iter()
-            .map(|tree| self.transform_tree(tree))
-            .collect()
+        let is_punct = |tree: Option<&TokenTree>, c| matches!(tree, Some(TokenTree::Punct(p)) if p.as_char() == c);
+        let mut iter = stream.into_iter().peekable();
+        let mut negated = false;
+        let mut out = Vec::new();
+        while let Some(tree) = iter.next() {
+            let next_negated = is_punct(Some(&tree), '-');
+            // A method call binds tighter than `-`, so it does not negate the
+            // literal.
+            let negated =
+                std::mem::replace(&mut negated, next_negated) && !is_punct(iter.peek(), '.');
+            out.push(self.transform_tree(tree, negated));
+        }
+        out.into_iter().collect()
     }
 }
 
@@ -301,6 +335,18 @@ mod tests {
             parse_digits("0b2"),
             Err("Invalid digit 2 in base 2 (did you forget the `0x` prefix?)".to_string())
         );
+    }
+
+    #[test]
+    fn test_fits_signed() {
+        assert!(fits_signed(0, &[], false));
+        assert!(fits_signed(8, &[0x7f], false));
+        assert!(!fits_signed(8, &[0x80], false));
+        assert!(fits_signed(8, &[0x80], true));
+        assert!(!fits_signed(8, &[0x81], true));
+        assert!(fits_signed(128, &[0, 1 << 63], true));
+        assert!(!fits_signed(128, &[1, 1 << 63], true));
+        assert!(!fits_signed(128, &[0, 1 << 63], false));
     }
 
     #[test]

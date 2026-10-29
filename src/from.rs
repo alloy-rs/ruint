@@ -31,18 +31,19 @@
 //     }
 // }
 
-use crate::Uint;
+use crate::{Sign, Uint};
 use core::{fmt, fmt::Debug};
 
-/// Error for [`TryFrom<T>`][TryFrom] for [`Uint`].
+/// Error for [`TryFrom<T>`][TryFrom] for [`Uint`] and [`Int`](crate::Int).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum ToUintError<T> {
-    /// Value is too large to fit the Uint.
+    /// Value is too large to fit the Uint or Int.
     ///
     /// `.0` is `BITS` and `.1` is the wrapped value.
     ValueTooLarge(usize, T),
 
-    /// Negative values can not be represented as Uint.
+    /// Negative values can not be represented as Uint, or the value is too
+    /// small to fit the Int.
     ///
     /// `.0` is `BITS` and `.1` is the wrapped value.
     ValueNegative(usize, T),
@@ -661,12 +662,6 @@ impl<const BITS: usize, const LIMBS: usize> TryFrom<f64> for Uint<BITS, LIMBS> {
 
         Ok(r)
     }
-}
-
-#[derive(PartialEq)]
-enum Sign {
-    Positive,
-    Negative,
 }
 
 impl<const BITS: usize, const LIMBS: usize> TryFrom<f32> for Uint<BITS, LIMBS> {

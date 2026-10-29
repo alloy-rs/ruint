@@ -5,8 +5,8 @@
 #![cfg(feature = "zeroize")]
 #![cfg_attr(docsrs, doc(cfg(feature = "zeroize")))]
 
-use crate::{Bits, Uint};
-use zeroize::Zeroize;
+use crate::{Bits, Int, Uint};
+use zeroize::{DefaultIsZeroes, Zeroize};
 
 impl<const BITS: usize, const LIMBS: usize> Zeroize for Uint<BITS, LIMBS> {
     fn zeroize(&mut self) {
@@ -22,3 +22,5 @@ impl<const BITS: usize, const LIMBS: usize> Zeroize for Bits<BITS, LIMBS> {
         self.as_uint_mut().zeroize();
     }
 }
+
+impl<const BITS: usize, const LIMBS: usize> DefaultIsZeroes for Int<BITS, LIMBS> {}

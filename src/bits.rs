@@ -892,78 +892,8 @@ impl<const BITS: usize, const LIMBS: usize> ShrAssign<&Self> for Uint<BITS, LIMB
     }
 }
 
-macro_rules! impl_shift {
-    (@main $u:ty) => {
-        impl<const BITS: usize, const LIMBS: usize> Shl<$u> for Uint<BITS, LIMBS> {
-            type Output = Self;
-
-            #[inline(always)]
-            fn shl(self, rhs: $u) -> Self::Output {
-                // Amounts that do not fit in usize shift out the entire value.
-                self.wrapping_shl(usize::try_from(rhs).unwrap_or(usize::MAX))
-            }
-        }
-
-        impl<const BITS: usize, const LIMBS: usize> Shr<$u> for Uint<BITS, LIMBS> {
-            type Output = Self;
-
-            #[inline(always)]
-            fn shr(self, rhs: $u) -> Self::Output {
-                self.wrapping_shr(usize::try_from(rhs).unwrap_or(usize::MAX))
-            }
-        }
-    };
-
-    (@ref $u:ty) => {
-        impl<const BITS: usize, const LIMBS: usize> Shl<&$u> for Uint<BITS, LIMBS> {
-            type Output = Self;
-
-            #[inline(always)]
-            fn shl(self, rhs: &$u) -> Self::Output {
-                <Self>::shl(self, *rhs)
-            }
-        }
-
-        impl<const BITS: usize, const LIMBS: usize> Shr<&$u> for Uint<BITS, LIMBS> {
-            type Output = Self;
-
-            #[inline(always)]
-            fn shr(self, rhs: &$u) -> Self::Output {
-                <Self>::shr(self, *rhs)
-            }
-        }
-    };
-
-    (@assign $u:ty) => {
-        impl<const BITS: usize, const LIMBS: usize> ShlAssign<$u> for Uint<BITS, LIMBS> {
-            #[inline(always)]
-            fn shl_assign(&mut self, rhs: $u) {
-                *self = *self << rhs;
-            }
-        }
-
-        impl<const BITS: usize, const LIMBS: usize> ShrAssign<$u> for Uint<BITS, LIMBS> {
-            #[inline(always)]
-            fn shr_assign(&mut self, rhs: $u) {
-                *self = *self >> rhs;
-            }
-        }
-    };
-
-    ($u:ty) => {
-        impl_shift!(@main $u);
-        impl_shift!(@ref $u);
-        impl_shift!(@assign $u);
-        impl_shift!(@assign &$u);
-    };
-
-    ($u:ty, $($tail:ty),*) => {
-        impl_shift!($u);
-        impl_shift!($($tail),*);
-    };
-}
-
 impl_shift!(
+    Uint;
     usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128
 );
 

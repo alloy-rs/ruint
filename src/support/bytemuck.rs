@@ -2,20 +2,24 @@
 #![cfg(feature = "bytemuck")]
 #![cfg_attr(docsrs, doc(cfg(feature = "bytemuck")))]
 
-use crate::Uint;
+use crate::{Int, Uint};
 use bytemuck::{Pod, Zeroable};
 
 // Implement Zeroable for all `Uint` types.
 unsafe impl<const BITS: usize, const LIMBS: usize> Zeroable for Uint<{ BITS }, { LIMBS }> {}
 
-// Implement the `Pod` trait for `Uint` types with a size that is a multiple of
-// 64, up to 1024. Note that implementors must have a size that is divisible by
-// 64, and using `Uint` sizes not divisible by 64 would violate Pod's
-// guarantees potentially leading to undefined behavior.
+// Implement Zeroable for all `Int` types.
+unsafe impl<const BITS: usize, const LIMBS: usize> Zeroable for Int<{ BITS }, { LIMBS }> {}
+
+// Implement the `Pod` trait for `Uint` and `Int` types with a size that is a
+// multiple of 64, up to 1024. Note that implementors must have a size that is
+// divisible by 64, and using `Uint` sizes not divisible by 64 would violate
+// Pod's guarantees potentially leading to undefined behavior.
 macro_rules! impl_pod {
     ($(($bits:expr, $limbs:expr)),+ $(,)?) => {
         $(
             unsafe impl Pod for Uint<{$bits}, $limbs> {}
+            unsafe impl Pod for Int<{$bits}, $limbs> {}
         )+
     };
 }
@@ -42,7 +46,7 @@ impl_pod! {
 #[cfg(test)]
 mod tests {
     use bytemuck::{Pod, Zeroable};
-    use ruint::Uint;
+    use ruint::{Int, Uint};
 
     #[test]
     fn test_uint_pod() {
@@ -67,6 +71,7 @@ mod tests {
     fn test_pod<const BITS: usize, const LIMBS: usize>()
     where
         Uint<{ BITS }, { LIMBS }>: Zeroable + Pod + Eq + Default,
+        Int<{ BITS }, { LIMBS }>: Zeroable + Pod + Eq + Default,
     {
         let val = Uint::<{ BITS }, { LIMBS }>::default();
         let bytes = bytemuck::bytes_of(&val);
@@ -75,5 +80,18 @@ mod tests {
 
         let zeroed_val: Uint<{ BITS }, { LIMBS }> = Zeroable::zeroed();
         assert_eq!(zeroed_val, Uint::<{ BITS }, { LIMBS }>::default());
+
+        let val = Int::<{ BITS }, { LIMBS }>::MINUS_ONE;
+        assert_eq!(
+            bytemuck::bytes_of(&val),
+            bytemuck::bytes_of(&val.cast_unsigned())
+        );
+        assert_eq!(
+            *bytemuck::from_bytes::<Int<BITS, LIMBS>>(bytemuck::bytes_of(&val)),
+            val
+        );
+
+        let zeroed_val: Int<{ BITS }, { LIMBS }> = Zeroable::zeroed();
+        assert_eq!(zeroed_val, Int::<{ BITS }, { LIMBS }>::ZERO);
     }
 }

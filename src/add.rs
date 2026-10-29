@@ -231,8 +231,8 @@ impl<'a, const BITS: usize, const LIMBS: usize> Sum<&'a Self> for Uint<BITS, LIM
     }
 }
 
-impl_bin_op!(Add, add, AddAssign, add_assign, wrapping_add);
-impl_bin_op!(Sub, sub, SubAssign, sub_assign, wrapping_sub);
+impl_bin_op!(Uint, Add, add, AddAssign, add_assign, wrapping_add);
+impl_bin_op!(Uint, Sub, sub, SubAssign, sub_assign, wrapping_sub);
 
 #[cfg(test)]
 mod tests {
