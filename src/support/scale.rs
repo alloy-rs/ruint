@@ -248,7 +248,7 @@ impl<const BITS: usize, const LIMBS: usize> Decode for CompactUint<BITS, LIMBS> 
 
 const fn assert_compact_supported(bits: usize) {
     assert!(
-        bits < COMPACT_BITS_LIMIT,
+        bits <= COMPACT_BITS_LIMIT,
         "compact encoding is supported only for 0-(2**536-1) values"
     );
 }
