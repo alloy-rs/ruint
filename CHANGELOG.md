@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrong `_PyLong_AsByteArray` call on Python 3.13 and later when extracting a `Uint` with the `pyo3` feature ([#690])
 - Wrong `wrapping_from` result and `ValueNegative` payload for negative integers narrower than the `Uint` ([#701])
 - Wrong `CompactRefUint::size_hint` for `Uint`s other than 256 bits, which made SCALE compact encoding panic for wider ones ([#702])
+- Wrong `wrapping_from` result and `ValueNegative` payload for negative `BigInt`s with the `num-bigint` feature ([#704])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
@@ -42,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#697]: https://github.com/alloy-rs/ruint/pull/697
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702
+[#704]: https://github.com/alloy-rs/ruint/pull/704
 
 ## [1.21.0] - 2026-10-20
 
