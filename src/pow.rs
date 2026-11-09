@@ -134,9 +134,6 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if self.is_small_power_of_two() {
             return self.pow_power_of_two(exp).0;
         }
-        if exp.const_is_zero() {
-            return Self::ONE;
-        }
         // An even base `2^k * m` raised to `exp` is a multiple of `2^(k *
         // exp)`. Past `BITS` that is zero, and below it only a few exponent
         // bits remain.
@@ -263,7 +260,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         result
     }
 
-    /// Returns `self`, or `BITS` when `self` is larger.
+    /// Returns `self`, or `BITS` when `self` is at least `BITS`.
     #[inline]
     const fn capped_below_bits(&self) -> usize {
         let mut high = 0;
@@ -452,7 +449,7 @@ mod tests {
                 assert_eq!(native.wrapping_pow(U::wrapping_from(e_small)), wrapping_pow_ref(native, U::wrapping_from(e_small)));
                 // Even bases with `k * e` around `BITS`.
                 let base = (odd | U::ONE) << k;
-                let e_edge = BITS.checked_div(k).unwrap_or(e_small as usize);
+                let e_edge = BITS / k.max(1);
                 for e in [e_edge.saturating_sub(1), e_edge, e_edge + 1] {
                     let e = U::wrapping_from(e);
                     assert_eq!(base.wrapping_pow(e), wrapping_pow_ref(base, e));

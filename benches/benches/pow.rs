@@ -24,13 +24,6 @@ pub fn group(criterion: &mut Criterion) {
         );
 
         // Small exponents, like `10 ** decimals`.
-        let name = format!("pow_small_exp/{BITS}");
-        bench_arbitrary_with(
-            criterion,
-            &name,
-            (3_u64..1000, 0_u64..20).prop_map(|(a, b)| (U::wrapping_from(a), U::wrapping_from(b))),
-            |(a, b)| a.pow(b),
-        );
         let name = format!("pow_10/{BITS}");
         bench_arbitrary_with(
             criterion,

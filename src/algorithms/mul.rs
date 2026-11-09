@@ -142,7 +142,8 @@ const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     });
 }
 
-/// Computes wrapping `result = a * a`, with a fast-path for small sizes.
+/// Computes wrapping `lhs = a * a` for zeroed `lhs`, with a fast-path for small
+/// sizes.
 ///
 /// Computes each cross product `a[i] * a[j]` once, doubles their sum and adds
 /// the diagonal squares, which needs about two thirds of the multiplications
