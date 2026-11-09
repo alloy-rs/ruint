@@ -22,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CompactUint::decode` accepting non-canonical SCALE compact encodings with a redundant mode or a zero most-significant byte ([#688])
 - Panic in `FromSql` for `NUMERIC` values with weight 32767 ([#687])
 - Panic or wrong value in `FromSql` for `BIT` and `VARBIT` when the payload does not match the bit length ([#687])
-- Unused `const_select_unpredictable` feature error with the `nightly` feature on recent nightlies
 - Panic in `FromSql` for empty `JSONB` and for `JSON` and `JSONB` payloads of a single quote ([#687])
 - rkyv `ArchivedUint` validation accepting a top limb above the type's width; the `CheckBytes` impls of `ArchivedUint` and `ArchivedBits` now require `Source` instead of `Trace` for the context's error type, which can break generic code that bounds only on `Trace` ([#689])
 - rkyv conversions building a `Uint<BITS, LIMBS>` with mismatched `LIMBS` instead of failing to compile ([#689])
@@ -31,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrong `_PyLong_AsByteArray` call on Python 3.13 and later when extracting a `Uint` with the `pyo3` feature ([#690])
 - Wrong `wrapping_from` result and `ValueNegative` payload for negative integers narrower than the `Uint` ([#701])
 - Wrong `CompactRefUint::size_hint` for `Uint`s other than 256 bits, which made SCALE compact encoding panic for wider ones ([#702])
+- Unused `const_select_unpredictable` feature error with the `nightly` feature on recent nightlies ([#709])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#697]: https://github.com/alloy-rs/ruint/pull/697
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702
+[#709]: https://github.com/alloy-rs/ruint/pull/709
 
 ## [1.21.0] - 2026-10-20
 
