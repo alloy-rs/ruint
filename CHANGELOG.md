@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CompactUint::decode` accepting non-canonical SCALE compact encodings with a redundant mode or a zero most-significant byte ([#688])
 - Panic in `FromSql` for `NUMERIC` values with weight 32767 ([#687])
 - Panic or wrong value in `FromSql` for `BIT` and `VARBIT` when the payload does not match the bit length ([#687])
+- Unused `const_select_unpredictable` feature error with the `nightly` feature on recent nightlies
 - Panic in `FromSql` for empty `JSONB` and for `JSON` and `JSONB` payloads of a single quote ([#687])
 - rkyv `ArchivedUint` validation accepting a top limb above the type's width; the `CheckBytes` impls of `ArchivedUint` and `ArchivedBits` now require `Source` instead of `Trace` for the context's error type, which can break generic code that bounds only on `Trace` ([#689])
 - rkyv conversions building a `Uint<BITS, LIMBS>` with mismatched `LIMBS` instead of failing to compile ([#689])
