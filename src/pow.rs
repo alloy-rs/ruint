@@ -134,6 +134,9 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         if self.is_small_power_of_two() {
             return self.pow_power_of_two(exp).0;
         }
+        if exp.const_is_zero() {
+            return Self::ONE;
+        }
         // An even base `2^k * m` raised to `exp` is a multiple of `2^(k *
         // exp)`. Past `BITS` that is zero, and below it only a few exponent
         // bits remain.
