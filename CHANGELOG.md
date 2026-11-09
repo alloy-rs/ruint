@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Optimize `wrapping_pow` and `pow` with an early zero for even bases, a native small-value path, dedicated squaring and windowed exponentiation ([#710])
 - Optimize `rlp` `Encodable` for `Uint` of more than two limbs and at most 55 bytes by writing the header and the payload with one `put_slice` ([#697])
 
 ### Fixed
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702
 [#709]: https://github.com/alloy-rs/ruint/pull/709
+[#710]: https://github.com/alloy-rs/ruint/pull/710
 
 ## [1.21.0] - 2026-10-20
 

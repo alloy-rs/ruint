@@ -34,6 +34,8 @@ pub use self::{
     mul_redc::{mul_redc, square_redc},
 };
 
+pub(crate) use self::mul::square_n;
+
 pub(crate) struct DW;
 
 #[allow(clippy::cast_lossless, clippy::cast_possible_truncation)]

@@ -7,3 +7,5 @@
 cc 6094eff41642fcafe6b3f005cb37be0a1325663279a398d9a322b9713e31dfaf # shrinks to b = 2, e = 0
 cc 91ec14a644e5bb122d26bff9b283ec81f2410e2ce2c0650263bef622c45c0b82 # shrinks to e = 1
 cc 59c1c81a16f5f196bcc05ffd83cc3cfa6f16e281bac0e0c058b25b2fc8e87792 # shrinks to e = 0
+cc c2b377efba8897b034bbc37539274fc8f11ad9b75ee1add6da10742cad195126 # shrinks to b = 50, e = 23
+cc c9801f16e8ba5769b81689b26c03e074d276f08010e4b6c126ebedba3368defa # shrinks to a = 0, e = 0, e_small = 395, k = 0, odd = 0, native = 134291468562624165132336659735389841508
