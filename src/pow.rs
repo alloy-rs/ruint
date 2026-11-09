@@ -140,28 +140,30 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         // An even base `2^k * m` raised to `exp` is a multiple of `2^(k *
         // exp)`. Past `BITS` that is zero, and below it only a few exponent
         // bits remain.
-        if self.limbs[0] & 1 == 0
-            && self
+        // `&` avoids a branch on the base's parity, which is hard to predict.
+        if (self.limbs[0] & 1 == 0)
+            & (self
                 .trailing_zeros()
                 .saturating_mul(exp.capped_below_bits())
-                >= BITS
+                >= BITS)
         {
             return Self::ZERO;
         }
 
-        // Small bases and exponents, like `10 ** decimals`, fit native
-        // integers.
-        if let Some(base) = self.to_u128()
+        // Powers that provably fit a `u128`, like `10 ** decimals`, use native
+        // arithmetic. One limb has native multiplication already.
+        if BITS > 64
+            && let Some(base) = self.to_u128()
             && let Some(exp) = exp.to_u128()
             && exp < 128
-            && let Some(result) = base.checked_pow(exp as u32)
+            && (128 - base.leading_zeros()) as u128 * exp <= 128
         {
-            return Self::from_u128_wrapping(result);
+            return Self::from_u128_wrapping(base.wrapping_pow(exp as u32));
         }
 
         // Long exponents multiply once per window of bits instead of once per
         // set bit.
-        if LIMBS <= WINDOW_MAX_LIMBS && exp.bit_len() > WINDOW_MIN_EXP_BITS {
+        if LIMBS >= 2 && LIMBS <= WINDOW_MAX_LIMBS && exp.bit_len() > WINDOW_MIN_EXP_BITS {
             return self.wrapping_pow_windowed(exp);
         }
 
@@ -449,7 +451,8 @@ mod tests {
                 assert_eq!(a.wrapping_pow(U::wrapping_from(e_small)), wrapping_pow_ref(a, U::wrapping_from(e_small)));
                 // Bases that fit native integers.
                 let native = U::wrapping_from(native >> (native % 128));
-                assert_eq!(native.wrapping_pow(U::wrapping_from(e_small)), wrapping_pow_ref(native, U::wrapping_from(e_small)));
+                let e_native = U::wrapping_from(e_small % 130);
+                assert_eq!(native.wrapping_pow(e_native), wrapping_pow_ref(native, e_native));
                 // Even bases with `k * e` around `BITS`.
                 let base = (odd | U::ONE) << k;
                 let e_edge = BITS / k.max(1);
