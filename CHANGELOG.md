@@ -44,8 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#697]: https://github.com/alloy-rs/ruint/pull/697
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702
-[#710]: https://github.com/alloy-rs/ruint/pull/710
 [#709]: https://github.com/alloy-rs/ruint/pull/709
+[#710]: https://github.com/alloy-rs/ruint/pull/710
 
 ## [1.21.0] - 2026-10-20
 
