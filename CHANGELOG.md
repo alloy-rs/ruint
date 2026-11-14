@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Optimize `rlp` `Encodable` for `Uint` of more than two limbs and at most 55 bytes by writing the header and the payload with one `put_slice` ([#697])
+- Optimize human-readable `serde` serialization of `Uint` and `Bits` by writing the hex digits without `core::fmt` ([#711])
 
 ### Fixed
 
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#702]: https://github.com/alloy-rs/ruint/pull/702
 [#704]: https://github.com/alloy-rs/ruint/pull/704
 [#709]: https://github.com/alloy-rs/ruint/pull/709
+[#711]: https://github.com/alloy-rs/ruint/pull/711
 
 ## [1.21.0] - 2026-10-20
 

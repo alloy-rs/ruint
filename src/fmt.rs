@@ -153,9 +153,9 @@ impl<const SIZE: usize> StackString<SIZE> {
 
     #[inline]
     pub(crate) const fn as_str(&self) -> &str {
-        // SAFETY: `buf` is only written to by the `fmt::Write::write_str`
-        // implementation which writes a valid UTF-8 string to `buf` and
-        // correctly sets `len`.
+        // SAFETY: `buf` is only written to by the `fmt::Write` implementation,
+        // which writes valid UTF-8, and by `push_byte` and `push_hex`, which
+        // write ASCII. All of them correctly set `len`.
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
@@ -165,10 +165,24 @@ impl<const SIZE: usize> StackString<SIZE> {
     }
 
     #[inline]
-    fn push_byte(&mut self, b: u8) {
+    pub(crate) fn push_byte(&mut self, b: u8) {
         debug_assert!(self.len < SIZE);
         unsafe { self.buf.as_mut_ptr().add(self.len).cast::<u8>().write(b) };
         self.len += 1;
+    }
+
+    /// Appends the `digits` least significant lower case hex digits of `limb`,
+    /// most significant first.
+    #[cfg(feature = "serde")]
+    #[inline]
+    pub(crate) fn push_hex(&mut self, limb: u64, digits: usize) {
+        debug_assert!(digits <= 16);
+        let mut shift = digits * 4;
+        for byte in &mut self.buf[self.len..self.len + digits] {
+            shift -= 4;
+            byte.write(b"0123456789abcdef"[(limb >> shift) as usize & 0xf]);
+        }
+        self.len += digits;
     }
 }
 

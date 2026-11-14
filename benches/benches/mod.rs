@@ -11,6 +11,7 @@ mod modular;
 mod mul;
 mod pow;
 mod root;
+mod serde;
 mod string;
 
 pub(crate) mod prelude;
@@ -32,6 +33,7 @@ pub fn group(c: &mut criterion::Criterion) {
     from::group(c);
     fmt::group(c);
     string::group(c);
+    serde::group(c);
 
     algorithms::group(c);
 }

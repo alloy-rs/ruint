@@ -2897,6 +2897,7 @@ dependencies = [
  "codspeed-criterion-compat 3.0.5",
  "proptest",
  "ruint",
+ "serde_json",
 ]
 
 [[package]]
