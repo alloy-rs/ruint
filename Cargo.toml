@@ -132,7 +132,7 @@ borsh = { version = "1.5", optional = true, default-features = false }
 pyo3-build-config = { version = "0.25", optional = true, default-features = false, features = ["resolve-config"] }
 
 [dev-dependencies]
-ruint = { path = ".", features = ["arbitrary", "proptest"] }
+ruint = { path = ".", features = ["arbitrary", "proptest", "serde"] }
 
 ark-bn254-03 = { version = "0.3.0", package = "ark-bn254" }
 ark-bn254-04 = { version = "0.4.0", package = "ark-bn254" }
