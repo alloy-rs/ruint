@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wrong `wrapping_from` result and `ValueNegative` payload for negative integers narrower than the `Uint` ([#701])
 - Wrong `CompactRefUint::size_hint` for `Uint`s other than 256 bits, which made SCALE compact encoding panic for wider ones ([#702])
 - Wrong bits limit check in `assert_compact_supported`, preventing `Uint`s with 536 bits ([#703])
+- Wrong `wrapping_from` result and `ValueNegative` payload for negative `BigInt`s with the `num-bigint` feature ([#704])
+- Unused `const_select_unpredictable` feature error with the `nightly` feature on recent nightlies ([#709])
 
 [#681]: https://github.com/alloy-rs/ruint/pull/681
 [#683]: https://github.com/alloy-rs/ruint/pull/683
@@ -44,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#701]: https://github.com/alloy-rs/ruint/pull/701
 [#702]: https://github.com/alloy-rs/ruint/pull/702
 [#703]: https://github.com/alloy-rs/ruint/pull/703
+[#704]: https://github.com/alloy-rs/ruint/pull/704
+[#709]: https://github.com/alloy-rs/ruint/pull/709
 
 ## [1.21.0] - 2026-10-20
 

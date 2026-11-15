@@ -55,7 +55,7 @@ impl<const BITS: usize, const LIMBS: usize> TryFrom<&BigInt> for Uint<BITS, LIMB
         let (sign, digits) = value.to_u64_digits();
         let (n, overflow) = Self::overflowing_from_limbs_slice(digits.as_slice());
         if sign == Sign::Minus {
-            Err(ToUintError::ValueNegative(BITS, n))
+            Err(ToUintError::ValueNegative(BITS, n.wrapping_neg()))
         } else if overflow {
             Err(ToUintError::ValueTooLarge(BITS, n))
         } else {
@@ -106,6 +106,19 @@ mod tests {
                 let big: BigInt = value.into();
                 let back: U = big.try_into().unwrap();
                 assert_eq!(back, value);
+            });
+        });
+    }
+
+    #[test]
+    fn test_negative_bigint_wraps() {
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            type U = Uint<BITS, LIMBS>;
+            assert_eq!(U::try_from(BigInt::from(-1)), Err(ToUintError::ValueNegative(BITS, U::MAX)));
+            assert_eq!(U::wrapping_from(-(BigInt::from(1) << BITS) - 1), U::MAX);
+            proptest!(|(value: U)| {
+                assert_eq!(U::wrapping_from(-BigInt::from(value)), value.wrapping_neg());
             });
         });
     }
