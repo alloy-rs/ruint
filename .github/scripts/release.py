@@ -14,4 +14,4 @@
 # * Git commit changes
 # * Git tag with version
 # * Git push branch and tag
-# * Cargo publish in all workspace members
+# * CI publishes the crates when the tag is pushed (.github/workflows/release.yml)
