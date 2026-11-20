@@ -3,3 +3,5 @@
 # Release using `cargo release --workspace`
 allow-branch = ["main"]
 shared-version = false
+# Publishing happens in CI (.github/workflows/release.yml) when the tag is pushed.
+publish = false
