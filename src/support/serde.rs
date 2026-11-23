@@ -29,7 +29,7 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         s: S,
     ) -> Result<S::Ok, S::Error> {
         let mut buffer = StackString::<SIZE>::new();
-        self.write_hex::<FULL>(&mut buffer);
+        self.write_hex::<FULL, SIZE>(&mut buffer);
         s.serialize_str(buffer.as_str())
     }
 
@@ -37,15 +37,28 @@ impl<const BITS: usize, const LIMBS: usize> Uint<BITS, LIMBS> {
         s.serialize_bytes(&self.to_be_bytes_vec())
     }
 
-    fn write_hex<const FULL: bool>(&self, s: &mut (impl fmt::Write + ?Sized)) {
+    /// Writes the `0x` prefixed lower case hex digits: all of them if `FULL`,
+    /// otherwise without leading zeros.
+    ///
+    /// This writes the digits directly instead of going through [`fmt`], which
+    /// is several times slower.
+    fn write_hex<const FULL: bool, const SIZE: usize>(&self, s: &mut StackString<SIZE>) {
+        s.push_byte(b'0');
+        s.push_byte(b'x');
         if BITS == 0 {
-            s.write_str(ZERO_STR)
-        } else if FULL {
-            write!(s, "{:#0w$x}", *self, w = 2 + Self::BYTES * 2)
-        } else {
-            write!(s, "{:#x}", *self)
+            s.push_byte(b'0');
+            return;
         }
-        .unwrap();
+        let digits = if FULL {
+            Self::BYTES * 2
+        } else {
+            self.bit_len().div_ceil(4).max(1)
+        };
+        let top = (digits - 1) / 16;
+        s.push_hex(self.limbs[top], digits - top * 16);
+        for &limb in self.limbs[..top].iter().rev() {
+            s.push_hex(limb, 16);
+        }
     }
 }
 
@@ -178,6 +191,37 @@ mod tests {
                 let deserialized = serde_json::from_str::<Bits<BITS, LIMBS>>(&serialized).unwrap();
                 assert_eq!(value, deserialized);
             });
+        });
+    }
+
+    #[test]
+    fn test_serde_human_readable_format() {
+        fn check<const BITS: usize, const LIMBS: usize>(value: Uint<BITS, LIMBS>) {
+            let (uint, bits) = if BITS == 0 {
+                (format!("\"{ZERO_STR}\""), format!("\"{ZERO_STR}\""))
+            } else {
+                (
+                    format!("\"{value:#x}\""),
+                    format!("\"{value:#0w$x}\"", w = 2 + nbytes(BITS) * 2),
+                )
+            };
+            assert_eq!(serde_json::to_string(&value).unwrap(), uint);
+            assert_eq!(serde_json::to_string(&Bits::from(value)).unwrap(), bits);
+        }
+
+        // Every digit count, with the top digit both minimal and maximal.
+        fn check_digit_counts<const BITS: usize, const LIMBS: usize>() {
+            check(Uint::<BITS, LIMBS>::ZERO);
+            for shift in 0..BITS {
+                check(Uint::<BITS, LIMBS>::ONE << shift);
+                check(Uint::<BITS, LIMBS>::MAX >> shift);
+            }
+        }
+
+        const_for!(BITS in SIZES {
+            const LIMBS: usize = nlimbs(BITS);
+            check_digit_counts::<BITS, LIMBS>();
+            proptest!(|(value: Uint<BITS, LIMBS>)| check(value));
         });
     }
 
