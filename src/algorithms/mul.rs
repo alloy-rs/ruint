@@ -142,6 +142,63 @@ const fn addmul_n_small(lhs: &mut [u64], a: &[u64], b: &[u64]) {
     });
 }
 
+/// Computes wrapping `lhs = a * a` for zeroed `lhs`, with a fast-path for small
+/// sizes.
+///
+/// Computes each cross product `a[i] * a[j]` once, doubles their sum and adds
+/// the diagonal squares, which needs about two thirds of the multiplications
+/// of [`addmul_n`].
+#[inline(always)]
+pub(crate) const fn square_n(lhs: &mut [u64], a: &[u64]) {
+    let n = lhs.len();
+    if !(n <= ADDMUL_N_SMALL_LIMIT && a.len() == n) {
+        let _ = addmul(lhs, a, a);
+        return;
+    }
+    assume!(n <= ADDMUL_N_SMALL_LIMIT);
+    assume!(a.len() == n);
+
+    // Cross products `a[i] * a[j]` with `i < j`, at limb `i + j < n`.
+    const_range_for!(i in 0..n => {
+        let mut carry = 0;
+        let mut p = 2 * i + 1;
+        while p + 1 < n {
+            (lhs[p], carry) = DW::split(DW::muladd2(a[i], a[p - i], carry, lhs[p]));
+            p += 1;
+        }
+        if p < n {
+            // The carry out of the last limb is discarded.
+            lhs[p] = (a[i].wrapping_mul(a[p - i]))
+                .wrapping_add(lhs[p])
+                .wrapping_add(carry);
+        }
+    });
+
+    // Double the cross products.
+    let mut shifted = 0;
+    const_range_for!(p in 0..n => {
+        let limb = lhs[p];
+        lhs[p] = (limb << 1) | shifted;
+        shifted = limb >> 63;
+    });
+
+    // Add the diagonal squares `a[i]^2` at limb `2 * i`.
+    let mut carry = false;
+    const_range_for!(i in 0..n.div_ceil(2) => {
+        let (low, high) = DW::split(DW::muladd2(a[i], a[i], 0, 0));
+        let (sum, c0) = lhs[2 * i].overflowing_add(low);
+        let (sum, c1) = sum.overflowing_add(carry as u64);
+        lhs[2 * i] = sum;
+        carry = c0 | c1;
+        if 2 * i + 1 < n {
+            let (sum, c0) = lhs[2 * i + 1].overflowing_add(high);
+            let (sum, c1) = sum.overflowing_add(carry as u64);
+            lhs[2 * i + 1] = sum;
+            carry = c0 | c1;
+        }
+    });
+}
+
 /// ⚠️ Computes `lhs += a` and returns the carry.
 #[doc = crate::algorithms::unstable_warning!()]
 #[inline(always)]
